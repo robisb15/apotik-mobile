@@ -10,18 +10,12 @@ class UserPage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF03A6A1).withOpacity(0.8),
-              Color(0xFF0288A1).withOpacity(0.9),
-            ],
+            colors: [Color(0xFF03A6A6), Color(0xFF0288D1)],
           ),
         ),
         child: Column(
           children: [
-            // Header with user info
             _buildUserHeader(context),
-            
-            // Main content
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -31,63 +25,87 @@ class UserPage extends StatelessWidget {
                     topRight: Radius.circular(30),
                   ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(height: 20),
-                      Text(
-                        'Selamat Datang,',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800]),
+                child: Column(
+                  children: [
+                    SizedBox(height: 20),
+                    Expanded(
+                      child: ListView(
+                        padding: EdgeInsets.symmetric(horizontal: 15),
+                        children: [
+                          // Grup Manajemen Produk
+                          _buildSectionHeader('Manajemen Produk'),
+                          _buildMenuItem(
+                            icon: Icons.inventory_2,
+                            title: 'Data Produk',
+                            color: Colors.teal[400]!,
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/produk'),
+                          ),
+                          Divider(height: 1, indent: 60),
+                          _buildMenuItem(
+                            icon: Icons.category,
+                            title: 'Kategori Produk',
+                            color: Colors.orange[400]!,
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/kategori'),
+                          ),
+                          Divider(height: 1, indent: 60),
+                          _buildMenuItem(
+                            icon: Icons.subtitles,
+                            title: 'Sub Kategori',
+                            color: Colors.purple[400]!,
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/sub-kategori'),
+                          ),
+                          SizedBox(height: 20),
+
+                          // Grup Manajemen Sistem
+                          _buildSectionHeader('Manajemen Sistem'),
+                          _buildMenuItem(
+                            icon: Icons.people_alt,
+                            title: 'Kelola User',
+                            color: Colors.indigo[400]!,
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/kelola-user'),
+                          ),
+                          Divider(height: 1, indent: 60),
+                          _buildMenuItem(
+                            icon: Icons.settings,
+                            title: 'Pengaturan Sistem',
+                            color: Colors.blueGrey[400]!,
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/pengaturan'),
+                          ),
+                          SizedBox(height: 20),
+
+                          // Grup Laporan
+                          _buildSectionHeader('Laporan & Analisis'),
+                          _buildMenuItem(
+                            icon: Icons.pie_chart,
+                            title: 'Laporan Penjualan',
+                            color: Colors.green[400]!,
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              '/laporan-penjualan',
+                            ),
+                          ),
+                          Divider(height: 1, indent: 60),
+                          _buildMenuItem(
+                            icon: Icons.analytics,
+                            title: 'Analisis Stok',
+                            color: Colors.blue[400]!,
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/analisis-stok'),
+                          ),
+                          SizedBox(height: 20),
+
+                          // Menu Logout
+                          _buildLogoutButton(context),
+                          SizedBox(height: 20),
+                        ],
                       ),
-                      Text(
-                        'Apa yang ingin Anda lakukan hari ini?',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600]),
-                      ),
-                      SizedBox(height: 40),
-                      
-                      // Action buttons
-                      _buildActionButton(
-                        context,
-                        icon: Icons.medical_services,
-                        label: 'Daftar Produk',
-                        color: Color(0xFF03A6A1),
-                        onPressed: () {
-                          // Navigate to product list
-                          Navigator.pushNamed(context, '/produk');
-                        },
-                      ),
-                      SizedBox(height: 20),
-                      _buildActionButton(
-                        context,
-                        icon: Icons.exit_to_app,
-                        label: 'Logout',
-                        color: Colors.red[400]!,
-                        onPressed: () {
-                          _showLogoutConfirmation(context);
-                        },
-                      ),
-                      
-                      // Additional info
-                      Spacer(),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: Text(
-                          'Apotek Sehat v1.0',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -100,42 +118,52 @@ class UserPage extends StatelessWidget {
   Widget _buildUserHeader(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(20),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              child: Icon(
-                Icons.person,
-                size: 30,
-                color: Colors.white),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.2),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Icon(Icons.person, size: 30, color: Colors.white),
             ),
             SizedBox(width: 15),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'User Apotek',
+                  'Admin Apotek',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                SizedBox(height: 4),
                 Text(
-                  'Staff Apotek',
+                  'Supervisor',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 14),
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
             Spacer(),
             IconButton(
-              icon: Icon(Icons.settings, color: Colors.white),
-              onPressed: () {
-                // Navigate to settings
-              },
+              icon: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.notifications, color: Colors.white, size: 22),
+              ),
+              onPressed: () {},
             ),
           ],
         ),
@@ -143,80 +171,112 @@ class UserPage extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-       backgroundColor: color, 
-        padding: EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 15, top: 10, bottom: 10),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey[700],
         ),
-        elevation: 3,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.white),
-          SizedBox(width: 10),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white,
-              fontWeight: FontWeight.bold),
-          ),
-        ],
       ),
     );
   }
 
-void _showLogoutConfirmation(BuildContext context) {
-  final outerContext = context; // simpan context luar untuk SnackBar
-
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text('Konfirmasi Logout'),
-        content: Text('Anda yakin ingin keluar dari aplikasi?'),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.symmetric(horizontal: 10),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(10),
         ),
-        actions: [
-          TextButton(
-            child: Text('Batal', style: TextStyle(color: Colors.grey)),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          TextButton(
-            child: Text('Logout', style: TextStyle(color: Colors.red)),
-            onPressed: () async {
-              Navigator.of(context).pop(); // Tutup dialog dulu
+        child: Icon(icon, color: color, size: 22),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+      ),
+      trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+      onTap: onTap,
+    );
+  }
 
-              try {
-                await Supabase.instance.client.auth.signOut(); // Logout dari Supabase
-                Navigator.pushReplacementNamed(outerContext, '/');
-              } catch (e) {
-                // Gunakan context luar, bukan context dialog
-                ScaffoldMessenger.of(outerContext).showSnackBar(
-                  SnackBar(
-                    content: Text('Logout gagal: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      );
-    },
-  );
-}
+  Widget _buildLogoutButton(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.symmetric(horizontal: 10),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(Icons.exit_to_app, color: Colors.red, size: 22),
+      ),
+      title: Text(
+        'Keluar Aplikasi',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: Colors.red,
+        ),
+      ),
+      onTap: () => _showLogoutConfirmation(context),
+    );
+  }
 
+  void _showLogoutConfirmation(BuildContext context) {
+    final outerContext = context;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.exit_to_app, color: Colors.red),
+              SizedBox(width: 10),
+              Text('Konfirmasi Logout'),
+            ],
+          ),
+          content: Text('Anda yakin ingin keluar dari aplikasi?'),
+          actions: [
+            TextButton(
+              child: Text('Batal'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: Text('Keluar', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                try {
+                  await Supabase.instance.client.auth.signOut();
+                  Navigator.pushReplacementNamed(outerContext, '/');
+                } catch (e) {
+                  ScaffoldMessenger.of(outerContext).showSnackBar(
+                    SnackBar(
+                      content: Text('Logout gagal: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
