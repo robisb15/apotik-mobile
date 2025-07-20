@@ -20,7 +20,8 @@ class _EntryManualBarangKeluarPageState
   final _qtyController = TextEditingController();
   final _fakturController = TextEditingController();
   final _tanggalController = TextEditingController();
-  final _tujuanController = TextEditingController();
+  final _tujuanController = TextEditingController(text: '');
+
   final _totalHargaController = TextEditingController();
   final _catatanController = TextEditingController();
 
@@ -181,16 +182,22 @@ class _EntryManualBarangKeluarPageState
                           (v == null || v.isEmpty) ? 'Wajib diisi' : null,
                     ),
                     SizedBox(height: 16),
-                    TextFormField(
-                      controller: _tujuanController,
-                      decoration: InputDecoration(
-                        labelText: 'Tujuan',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Tujuan wajib diisi'
-                          : null,
-                    ),
+                   DropdownButtonFormField<String>(
+  value: _tujuanController.text.isNotEmpty ? _tujuanController.text : null,
+  items: const [
+    DropdownMenuItem(value: 'Resep', child: Text('Resep')),
+    DropdownMenuItem(value: 'Swamedikasi', child: Text('Swamedikasi')),
+  ],
+  onChanged: (value) {
+    setState(() => _tujuanController.text = value ?? '');
+  },
+  decoration: const InputDecoration(
+    labelText: 'Tujuan',
+    border: OutlineInputBorder(),
+  ),
+  validator: (value) =>
+      value == null || value.isEmpty ? 'Tujuan wajib dipilih' : null,
+),
                     SizedBox(height: 16),
                     TextFormField(
                       controller: _fakturController,

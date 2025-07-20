@@ -94,32 +94,21 @@ class _ProductPageState extends State<ProductPage> {
     return categories.whereType<String>().toList();
   }
 
-  List<String> get _manufacturers {
-    final manufacturers = _products
-        .map((p) => p['produsen']?.toString())
-        .where((e) => e != null && e.isNotEmpty)
-        .cast<String>()
-        .toSet()
-        .toList();
-    manufacturers.sort();
-    return manufacturers;
-  }
+  
 
   List<Map<String, dynamic>> get _filteredProducts {
     return _products.where((product) {
       final name = (product['nama_produk'] ?? '').toString().toLowerCase();
       final category = (product['tag'] ?? '').toString().toLowerCase();
-      final manufacturer = (product['produsen'] ?? '').toString().toLowerCase();
+      
 
       final matchesSearch = name.contains(_searchQuery.toLowerCase());
       final matchesCategory =
           _selectedCategory == null ||
           category == _selectedCategory!.toLowerCase();
-      final matchesManufacturer =
-          _selectedManufacturer == null ||
-          manufacturer == _selectedManufacturer!.toLowerCase();
+    
 
-      return matchesSearch && matchesCategory && matchesManufacturer;
+      return matchesSearch && matchesCategory;
     }).toList();
   }
 
@@ -272,31 +261,7 @@ class _ProductPageState extends State<ProductPage> {
                         setState(() => _selectedCategory = value),
                   ),
                 ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: _selectedManufacturer,
-                    items: _manufacturers.map((prod) {
-                      return DropdownMenuItem<String>(
-                        value: prod,
-                        child: Text(prod),
-                      );
-                    }).toList(),
-                    decoration: InputDecoration(
-                      labelText: 'Produsen',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                    ),
-                    onChanged: (value) =>
-                        setState(() => _selectedManufacturer = value),
-                  ),
-                ),
+               
               ],
             ),
           ],
@@ -360,8 +325,8 @@ class _ProductPageState extends State<ProductPage> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Kode: ${product['kode_produk'] ?? '-'}'),
-                    Text('Produsen: ${product['produsen'] ?? '-'}'),
+                 
+                   
 
                     Text(
                       'Kategori: ${_getKategoriName(product['sub_kategori_id'])}',
@@ -443,12 +408,8 @@ class _ProductPageState extends State<ProductPage> {
       final TextEditingController _namaController = TextEditingController(
         text: existingProduct?['nama_produk'] ?? '',
       );
-      final TextEditingController _kodeController = TextEditingController(
-        text: existingProduct?['kode_produk'] ?? '',
-      );
-      final TextEditingController _produsenController = TextEditingController(
-        text: existingProduct?['produsen'] ?? '',
-      );
+     
+    
       final TextEditingController _hargaController = TextEditingController(
         text: existingProduct?['harga_jual']?.toString() ?? '',
       );
@@ -507,24 +468,9 @@ class _ProductPageState extends State<ProductPage> {
                       validator: (v) =>
                           v == null || v.isEmpty ? 'Wajib diisi' : null,
                     ),
+                    
                     SizedBox(height: 12),
-                    TextFormField(
-                      controller: _kodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Kode Produk',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Wajib diisi' : null,
-                    ),
-                    SizedBox(height: 12),
-                    TextFormField(
-                      controller: _produsenController,
-                      decoration: InputDecoration(
-                        labelText: 'Produsen',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
+                   
                     SizedBox(height: 12),
                     TextFormField(
                       controller: _hargaController,
@@ -566,20 +512,26 @@ class _ProductPageState extends State<ProductPage> {
                           )
                           ? selectedSubKategoriId
                           : null,
-                      items: _subKategori
-                          .map(
-                            (sub) => DropdownMenuItem<int>(
-                              value: sub['id'] as int,
-                              child: Text(sub['nama']),
-                            ),
-                          )
-                          .toList(),
+                     items: _subKategori
+    .map((sub) {
+      final kategori = _kategori.firstWhere(
+        (k) => k['id'] == sub['kategori_id'],
+        orElse: () => {'nama': '-'},
+      );
+      final label =
+          '${kategori['nama'] ?? '-'} - ${sub['nama'] ?? '-'}';
+      return DropdownMenuItem<int>(
+        value: sub['id'] as int,
+        child: Text(label),
+      );
+    })
+    .toList(),
                       decoration: InputDecoration(
-                        labelText: 'Sub Kategori',
+                        labelText: 'Kategori',
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (val) => selectedSubKategoriId = val,
-                      validator: (v) => v == null ? 'Pilih sub kategori' : null,
+                      validator: (v) => v == null ? 'Pilih kategori' : null,
                     ),
                     SizedBox(height: 24),
                     ElevatedButton(
@@ -591,8 +543,7 @@ class _ProductPageState extends State<ProductPage> {
                             final barcodeText = _barcodeController.text.trim();
                             final dataToSave = {
                               'nama_produk': _namaController.text ?? '',
-                              'kode_produk': _kodeController.text ?? '',
-                              'produsen': _produsenController.text ?? '',
+                             
                               'harga_jual': harga ?? 0,
                               'tag': _tagController.text ?? '',
                               'sub_kategori_id': selectedSubKategoriId ?? '',

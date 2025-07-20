@@ -88,7 +88,7 @@ class _EntryManualPageState extends State<EntryManualPage> {
 
       await supabase.from('receipt_details').insert({
         'receipt_id': receipt['id'],
-        'product_id': _selectedProduct!['id'],
+        'product_batch_id':batch['id'],
         'distributor_id': _selectedDistributor!['id'],
         'exp': DateFormat(
           'yyyy-MM-dd',
@@ -100,7 +100,9 @@ class _EntryManualPageState extends State<EntryManualPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Data berhasil disimpan')));
+
       _resetForm();
+       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -141,7 +143,7 @@ class _EntryManualPageState extends State<EntryManualPage> {
                       items: _products.map((p) {
                         return DropdownMenuItem(
                           value: p,
-                          child: Text('${p['nama_produk']} – ${p['produsen']}'),
+                          child: Text('${p['nama_produk']}'),
                         );
                       }).toList(),
                       decoration: InputDecoration(
@@ -233,7 +235,7 @@ class _EntryManualPageState extends State<EntryManualPage> {
                     TextFormField(
                       controller: _hargaController,
                       decoration: InputDecoration(
-                        labelText: 'Total Harga (Rp)',
+                        labelText: 'Harga (Rp)',
                         border: OutlineInputBorder(),
                         prefixText: 'Rp ',
                       ),

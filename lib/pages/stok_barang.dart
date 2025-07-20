@@ -23,7 +23,7 @@ class _StokBarangPageState extends State<StokBarangPage> {
         .from('product_batches')
         .select(
           'qty_sisa, qty_masuk, qty_keluar, batch_code, products(nama_produk, satuan)',
-        );
+        ).filter('deleted_at','is',null);
 
     List<Map<String, dynamic>> listItems = [];
 

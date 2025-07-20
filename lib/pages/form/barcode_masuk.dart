@@ -101,7 +101,7 @@ class _ScanBarcodePageState extends State<ScanBarcodePage> {
 
       await supabase.from('receipt_details').insert({
         'receipt_id': receipt['id'],
-        'product_id': _selectedProduct!['id'],
+          'product_batch_id':batch['id'],
         'distributor_id': _selectedDistributor!['id'],
         'exp': DateFormat(
           'yyyy-MM-dd',
@@ -114,6 +114,7 @@ class _ScanBarcodePageState extends State<ScanBarcodePage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Data berhasil disimpan')));
       _resetForm();
+       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
