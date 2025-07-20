@@ -55,7 +55,7 @@ class UserPage extends StatelessWidget {
                             title: 'Sub Kategori',
                             color: Colors.purple[400]!,
                             onTap: () =>
-                                Navigator.pushNamed(context, '/sub-kategori'),
+                                Navigator.pushNamed(context, '/subkategori'),
                           ),
                           SizedBox(height: 20),
 
@@ -65,37 +65,29 @@ class UserPage extends StatelessWidget {
                             icon: Icons.people_alt,
                             title: 'Kelola User',
                             color: Colors.indigo[400]!,
-                            onTap: () =>
-                                Navigator.pushNamed(context, '/kelola-user'),
+                            onTap: () => Navigator.pushNamed(context, '/user'),
                           ),
                           Divider(height: 1, indent: 60),
                           _buildMenuItem(
-                            icon: Icons.settings,
-                            title: 'Pengaturan Sistem',
-                            color: Colors.blueGrey[400]!,
+                            icon: Icons.cabin,
+                            title: 'Kelola Distributor',
+                            color: Colors.blue[400]!,
                             onTap: () =>
-                                Navigator.pushNamed(context, '/pengaturan'),
+                                Navigator.pushNamed(context, '/distributor'),
                           ),
+
                           SizedBox(height: 20),
 
                           // Grup Laporan
-                          _buildSectionHeader('Laporan & Analisis'),
+                          _buildSectionHeader('Laporan'),
                           _buildMenuItem(
                             icon: Icons.pie_chart,
                             title: 'Laporan Penjualan',
                             color: Colors.green[400]!,
                             onTap: () => Navigator.pushNamed(
                               context,
-                              '/laporan-penjualan',
+                              '/laporan',
                             ),
-                          ),
-                          Divider(height: 1, indent: 60),
-                          _buildMenuItem(
-                            icon: Icons.analytics,
-                            title: 'Analisis Stok',
-                            color: Colors.blue[400]!,
-                            onTap: () =>
-                                Navigator.pushNamed(context, '/analisis-stok'),
                           ),
                           SizedBox(height: 20),
 
@@ -136,7 +128,7 @@ class UserPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Admin Apotek',
+                  'Staf Apotek',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -145,7 +137,7 @@ class UserPage extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Supervisor',
+                  'staf@gmail.com',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,

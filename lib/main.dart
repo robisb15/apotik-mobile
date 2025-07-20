@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/pages/distributor/distributor.dart';
+import 'package:flutter_application_1/pages/kategori/kategori.dart';
+import 'package:flutter_application_1/pages/laporan/laporan.dart';
 import 'package:flutter_application_1/pages/produk/produk.dart';
+import 'package:flutter_application_1/pages/subkategori/subkategori.dart';
+import 'package:flutter_application_1/pages/user/user.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
 import 'home_page.dart';
@@ -24,7 +29,12 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => LoginPage(),
         '/home': (context) => HomePage(),
-        '/produk': (context) => ProductPage()
+        '/produk': (context) => ProductPage(),
+        '/kategori': (context) => CategoryManagementPage(),
+        '/subkategori': (context) => SubKategoriManagementPage(),
+        '/user': (context) => UserManagementPage(),
+        '/distributor': (context) => DistributorManagementPage(),
+        '/laporan': (context) => InventoryTabsPage()
       },
     );
   }

@@ -1,82 +1,79 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/pages/form/barcode_masuk.dart';
-import 'package:flutter_application_1/pages/form/entry_manual.dart';
+import 'package:flutter_application_1/pages/form/barcode_keluar.dart';
+import 'package:flutter_application_1/pages/form/entry_manual_keluar.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class PermintaanBarangPage extends StatefulWidget {
+class BarangKeluarPage extends StatefulWidget {
   @override
-  _PermintaanBarangPageState createState() => _PermintaanBarangPageState();
+  _BarangKeluarPageState createState() => _BarangKeluarPageState();
 }
 
-class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
+class _BarangKeluarPageState extends State<BarangKeluarPage> {
   final supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
 
+  List<Map<String, dynamic>> _dataKeluar = [];
+  final List<String> _tujuanList = [];
   String? _filterStatus;
-  String? _filterSupplier;
-
-  List<Map<String, dynamic>> _requests = [];
-  final List<String> _suppliers = [];
+  String? _filterTujuan;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadRequests();
+    _loadBarangKeluar();
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _loadBarangKeluar() async {
     setState(() => _isLoading = true);
 
-    final receipts = await supabase.from('receipts').select();
-    final details = await supabase.from('receipt_details').select();
+    final outgoings = await supabase.from('outgoings').select();
+    final details = await supabase.from('outgoing_details').select();
+    final batches = await supabase.from('product_batches').select();
     final products = await supabase.from('products').select();
-    final distributors = await supabase.from('distributors').select();
 
     List<Map<String, dynamic>> results = [];
 
-    for (var receipt in receipts) {
-      final relatedDetails = details.where(
-        (d) => d['receipt_id'] == receipt['id'],
-      );
+    for (var keluar in outgoings) {
+      final keluarId = keluar['id'];
+      final relatedDetails = details.where((d) => d['outgoing_id'] == keluarId);
 
       for (var detail in relatedDetails) {
+        final batch = batches.firstWhere(
+          (b) => b['id'] == detail['product_batch_id'],
+          orElse: () => {},
+        );
+
         final product = products.firstWhere(
-          (p) => p['id'] == detail['product_id'],
-          orElse: () => {'nama_produk': '-'},
+          (p) => p['id'] == batch['product_id'],
+          orElse: () => {'nama_produk': '-', 'satuan': '-'},
         );
 
-        final distributor = distributors.firstWhere(
-          (d) => d['id'] == detail['distributor_id'],
-          orElse: () => {'nama': '-'},
-        );
-
-        final totalHarga = receipt['total_harga']; // ganti jika ada harga
-
-        if (!_suppliers.contains(distributor['nama'])) {
-          _suppliers.add(distributor['nama']);
+        final tujuan = keluar['tujuan'] ?? '-';
+        if (!_tujuanList.contains(tujuan)) {
+          _tujuanList.add(tujuan);
         }
 
         results.add({
-          'kode_batch': detail['batch_code'] ?? '-',
-          'no_faktur': receipt['no_faktur'] ?? '-',
-          'distributor': distributor['nama'],
+          'kode_batch': batch['batch_code'] ?? '-',
+          'no_faktur': keluar['no_faktur'] ?? '-',
           'tanggal': DateFormat(
             'dd/MM/yyyy',
-          ).format(DateTime.parse(receipt['tanggal'])),
+          ).format(DateTime.parse(keluar['tanggal'])),
           'nama_produk': product['nama_produk'] ?? '-',
-          'qty': detail['qty_diterima'] ?? 0,
-          'exp': detail['exp'],
-          'total_harga': totalHarga,
-          'status': 'Pending',
+          'qty': detail['qty_keluar'] ?? 0,
           'satuan': product['satuan'] ?? '-',
+          'exp': batch['exp'],
+          'total_harga': keluar['total_harga'],
+          'tujuan': tujuan,
+          'status': 'Selesai',
         });
       }
     }
 
     setState(() {
-      _requests = results;
+      _dataKeluar = results;
       _isLoading = false;
     });
   }
@@ -86,15 +83,15 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Hapus Data'),
-        content: Text('Yakin ingin menghapus permintaan ini?'),
+        content: Text('Yakin ingin menghapus data ini?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.pop(context, false),
             child: Text('Batal'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.pop(context, true),
             child: Text('Hapus', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -102,24 +99,22 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
     );
   }
 
-  Future<void> _deleteReceipt(String noFaktur) async {
+  Future<void> _deleteOutgoing(String noFaktur) async {
     try {
-      // Hapus detail dulu karena ada foreign key
-      final receipt = await supabase
-          .from('receipts')
+      final outgoing = await supabase
+          .from('outgoings')
           .select('id')
           .eq('no_faktur', noFaktur)
           .maybeSingle();
 
-      if (receipt != null && receipt['id'] != null) {
-        final receiptId = receipt['id'];
+      if (outgoing != null && outgoing['id'] != null) {
+        final outgoingId = outgoing['id'];
 
         await supabase
-            .from('receipt_details')
+            .from('outgoing_details')
             .delete()
-            .eq('receipt_id', receiptId);
-
-        await supabase.from('receipts').delete().eq('id', receiptId);
+            .eq('outgoing_id', outgoingId);
+        await supabase.from('outgoings').delete().eq('id', outgoingId);
 
         ScaffoldMessenger.of(
           context,
@@ -129,26 +124,24 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Gagal menghapus data')));
-      print('Delete error: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredRequests = _requests.where((request) {
+    final filteredData = _dataKeluar.where((item) {
       final statusMatch =
-          _filterStatus == null || request['status'] == _filterStatus;
-      final supplierMatch =
-          _filterSupplier == null || request['distributor'] == _filterSupplier;
-      return statusMatch && supplierMatch;
+          _filterStatus == null || item['status'] == _filterStatus;
+      final tujuanMatch =
+          _filterTujuan == null || item['tujuan'] == _filterTujuan;
+      return statusMatch && tujuanMatch;
     }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Barang Masuk'),
+        title: Text('Barang Keluar'),
         centerTitle: true,
         backgroundColor: Color(0xFF03A6A1),
-        elevation: 0,
         actions: [
           IconButton(
             icon: Icon(Icons.filter_list),
@@ -156,19 +149,23 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
           ),
         ],
       ),
+
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Cari obat...',
+                            hintText: 'Cari produk...',
                             prefixIcon: Icon(
                               Icons.search,
                               color: Color(0xFF03A6A1),
@@ -194,18 +191,18 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => ScanBarcodePage(),
+                                builder: (_) => ScanBarangKeluarPage(),
                               ),
                             );
                           } else if (value == 'manual') {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => EntryManualPage(),
+                                builder: (_) => EntryManualBarangKeluarPage(),
                               ),
                             );
                           }
-                          await _loadRequests();
+                          _loadBarangKeluar(); // Refresh data
                         },
                         itemBuilder: (context) => [
                           PopupMenuItem(
@@ -236,43 +233,46 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
                     ],
                   ),
                 ),
+
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: filteredRequests.length,
-                    itemBuilder: (context, index) {
-                      final request = filteredRequests[index];
-                      return InkWell(
-                        // onTap: () => _showDetailDialog(request),
-                        child: Dismissible(
-                          key: ValueKey(
-                            '${request['no_faktur']}_${request['kode_batch']}',
+                  child: filteredData.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Belum ada data barang keluar.',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
                           ),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: EdgeInsets.symmetric(horizontal: 20),
-                            color: Colors.red,
-                            child: Icon(Icons.delete, color: Colors.white),
-                          ),
-                          confirmDismiss: (direction) async {
-                            return await _confirmDelete(context);
+                        )
+                      : ListView.builder(
+                          itemCount: filteredData.length,
+                          itemBuilder: (context, index) {
+                            final item = filteredData[index];
+                            return Dismissible(
+                              key: ValueKey(
+                                '${item['no_faktur']}_${item['kode_batch']}',
+                              ),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                color: Colors.red,
+                                alignment: Alignment.centerRight,
+                                padding: EdgeInsets.symmetric(horizontal: 20),
+                                child: Icon(Icons.delete, color: Colors.white),
+                              ),
+                              confirmDismiss: (_) => _confirmDelete(context),
+                              onDismissed: (_) async {
+                                await _deleteOutgoing(item['no_faktur']);
+                                setState(() => _dataKeluar.remove(item));
+                              },
+                              child: _buildCard(item),
+                            );
                           },
-                          onDismissed: (direction) async {
-                            await _deleteReceipt(request['no_faktur']);
-                            setState(() => _requests.remove(request));
-                          },
-                          child: _buildRequestCard(request),
                         ),
-                      );
-                    },
-                  ),
                 ),
               ],
             ),
     );
   }
 
-  Widget _buildRequestCard(Map<String, dynamic> data) {
+  Widget _buildCard(Map<String, dynamic> data) {
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
@@ -287,7 +287,7 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  data['nama_produk'] ?? '-',
+                  data['nama_produk'],
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -304,8 +304,8 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
             Divider(),
             Text('Kode Batch: ${data['kode_batch']}'),
             Text('No. Faktur: ${data['no_faktur']}'),
-            Text('Distributor: ${data['distributor']}'),
-            Text('Tanggal Masuk: ${data['tanggal']}'),
+            Text('Tujuan: ${data['tujuan']}'),
+            Text('Tanggal Keluar: ${data['tanggal']}'),
             Text('Jumlah: ${data['qty']} ${data['satuan']}'),
             Text(
               'Total: Rp ${data['total_harga']}',
@@ -319,13 +319,13 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
 
   void _showFilterDialog() {
     String? selectedStatus = _filterStatus;
-    String? selectedSupplier = _filterSupplier;
+    String? selectedTujuan = _filterTujuan;
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(
-          'Filter Permintaan',
+          'Filter Barang Keluar',
           style: TextStyle(color: Color(0xFF03A6A1)),
         ),
         content: Column(
@@ -339,28 +339,28 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
               ),
               items: [
                 DropdownMenuItem(value: null, child: Text('Semua Status')),
-                ...['Pending', 'Diproses', 'Selesai'].map(
-                  (status) =>
-                      DropdownMenuItem(value: status, child: Text(status)),
-                ),
+                ...[
+                  'Pending',
+                  'Diproses',
+                  'Selesai',
+                ].map((s) => DropdownMenuItem(value: s, child: Text(s))),
               ],
               onChanged: (value) => selectedStatus = value,
             ),
             SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: selectedSupplier,
+              value: selectedTujuan,
               decoration: InputDecoration(
-                labelText: 'Supplier',
+                labelText: 'Tujuan',
                 border: OutlineInputBorder(),
               ),
               items: [
-                DropdownMenuItem(value: null, child: Text('Semua Supplier')),
-                ..._suppliers.map(
-                  (supplier) =>
-                      DropdownMenuItem(value: supplier, child: Text(supplier)),
+                DropdownMenuItem(value: null, child: Text('Semua Tujuan')),
+                ..._tujuanList.map(
+                  (t) => DropdownMenuItem(value: t, child: Text(t)),
                 ),
               ],
-              onChanged: (value) => selectedSupplier = value,
+              onChanged: (value) => selectedTujuan = value,
             ),
           ],
         ),
@@ -369,7 +369,7 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
             onPressed: () {
               setState(() {
                 _filterStatus = null;
-                _filterSupplier = null;
+                _filterTujuan = null;
               });
               Navigator.pop(context);
             },
@@ -379,7 +379,7 @@ class _PermintaanBarangPageState extends State<PermintaanBarangPage> {
             onPressed: () {
               setState(() {
                 _filterStatus = selectedStatus;
-                _filterSupplier = selectedSupplier;
+                _filterTujuan = selectedTujuan;
               });
               Navigator.pop(context);
             },

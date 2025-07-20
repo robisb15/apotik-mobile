@@ -1,18 +1,34 @@
 import 'package:flutter/material.dart';
 import 'pages/dashboard.dart';
 import 'pages/permintaan.dart';
-import 'pages/page3.dart';
-import 'pages/page4.dart';
+import 'pages/scan.dart';
+import 'pages/keluar.dart';
 import 'pages/lainnya.dart';
 
 class HomePage extends StatefulWidget {
+  final int initialIndex;
+  const HomePage({Key? key, this.initialIndex = 0}) : super(key: key);
+
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
-  final _pages = [Dashboard(), PermintaanBarangPage(), Page3(), Page4(), UserPage()];
+  late int _currentIndex;
+
+  final List<Widget> _pages = [
+    Dashboard(),
+    PermintaanBarangPage(),
+    ScanPage(),
+    BarangKeluarPage(),
+    UserPage(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +44,12 @@ class _HomePageState extends State<HomePage> {
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.document_scanner), label: 'Permintaan'),
-          BottomNavigationBarItem(icon: Icon(Icons.camera), label: 'Page 3'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Page 4'),
+          BottomNavigationBarItem(icon: Icon(Icons.inbox), label: 'Masuk'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.document_scanner),
+            label: 'Scan',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.outbox), label: 'Keluar'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Lainnya'),
         ],
       ),
