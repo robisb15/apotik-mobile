@@ -11,7 +11,7 @@
 
 
     <application
-        android:label="Apotik Mobile"
+        android:label="Apotik Swadaya Farma"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
