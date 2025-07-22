@@ -11,7 +11,7 @@
 
 
     <application
-        android:label="flutter_application_1"
+        android:label="Apotik Mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -442,17 +442,26 @@ Future<void> exportToExcel(
         fieldNames = headers;
     }
 
-    final pdfData = data.map((row) {
-      return fieldNames.map((field) {
-        final value = _getNestedValue(row, field);
-        if (field == 'tanggal' && value != null) {
-          return DateFormat('dd/MM/yyyy').format(DateTime.parse(value));
-        } else if (field.contains('harga') && value != null) {
-          return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ').format(value);
-        }
-        return value?.toString() ?? '-';
-      }).toList();
-    }).toList();
+   final pdfData = data.map((row) {
+  return fieldNames.map((field) {
+    final value = _getNestedValue(row, field);
+    if (field == 'tanggal' && value != null && value is String) {
+      try {
+        return DateFormat('dd/MM/yyyy').format(DateTime.parse(value));
+      } catch (e) {
+        return value; // fallback jika format tanggal tidak valid
+      }
+    } else if (field.contains('harga') && value != null) {
+  final numValue = value is num
+      ? value
+      : value is String
+          ? num.tryParse(value) ?? 0
+          : 0;
+  return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ').format(numValue);
+}
+    return value?.toString() ?? '-';
+  }).toList();
+}).toList();
 
     pdf.addPage(
       pw.Page(

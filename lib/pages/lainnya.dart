@@ -1,7 +1,73 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class UserPage extends StatelessWidget {
+class UserPage extends StatefulWidget {
+  @override
+  _UserPageState createState() => _UserPageState();
+}
+
+class _UserPageState extends State<UserPage> {
+  String? name;
+  String? email;
+  String? username;
+  String? role;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+  final supabase = Supabase.instance.client;
+    if (userId == null) return;
+
+    try {
+    final response = await supabase
+        .from('users')
+        .select('nama, email, username, role')
+        .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+        .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+print(userId);
+    if (response == null) {
+      // Data user tidak ditemukan
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Data user tidak ditemukan.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Data ditemukan, simpan ke state
+    if (mounted) {
+      setState(() {
+        name = response['nama'];
+        email = response['email'];
+        username = response['username'];
+        role = response['role'];
+        isLoading = false;
+      });
+    }
+  } catch (e) {
+    // Tangani error lainnya
+    print('Gagal mengambil data user: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan saat memuat data.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,7 +81,7 @@ class UserPage extends StatelessWidget {
         ),
         child: Column(
           children: [
-            _buildUserHeader(context),
+            _buildUserHeader(),
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -32,7 +98,6 @@ class UserPage extends StatelessWidget {
                       child: ListView(
                         padding: EdgeInsets.symmetric(horizontal: 15),
                         children: [
-                          // Grup Manajemen Produk
                           _buildSectionHeader('Manajemen Produk'),
                           _buildMenuItem(
                             icon: Icons.inventory_2,
@@ -59,15 +124,19 @@ class UserPage extends StatelessWidget {
                           ),
                           SizedBox(height: 20),
 
-                          // Grup Manajemen Sistem
-                          _buildSectionHeader('Manajemen Sistem'),
-                          _buildMenuItem(
-                            icon: Icons.people_alt,
-                            title: 'Kelola User',
-                            color: Colors.indigo[400]!,
-                            onTap: () => Navigator.pushNamed(context, '/user'),
-                          ),
-                          Divider(height: 1, indent: 60),
+                          // Manajemen Sistem (Hanya admin/owner)
+                          if (role == 'admin' || role == 'owner') ...[
+                            _buildSectionHeader('Manajemen Sistem'),
+                            _buildMenuItem(
+                              icon: Icons.people_alt,
+                              title: 'Kelola User',
+                              color: Colors.indigo[400]!,
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/user'),
+                            ),
+                            Divider(height: 1, indent: 60),
+                          ],
+
                           _buildMenuItem(
                             icon: Icons.cabin,
                             title: 'Kelola Distributor',
@@ -78,20 +147,16 @@ class UserPage extends StatelessWidget {
 
                           SizedBox(height: 20),
 
-                          // Grup Laporan
                           _buildSectionHeader('Laporan'),
                           _buildMenuItem(
                             icon: Icons.pie_chart,
                             title: 'Laporan Penjualan',
                             color: Colors.green[400]!,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              '/laporan',
-                            ),
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/laporan'),
                           ),
                           SizedBox(height: 20),
 
-                          // Menu Logout
                           _buildLogoutButton(context),
                           SizedBox(height: 20),
                         ],
@@ -107,7 +172,7 @@ class UserPage extends StatelessWidget {
     );
   }
 
-  Widget _buildUserHeader(BuildContext context) {
+  Widget _buildUserHeader() {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -124,27 +189,30 @@ class UserPage extends StatelessWidget {
               child: Icon(Icons.person, size: 30, color: Colors.white),
             ),
             SizedBox(width: 15),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Staf Apotek',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            isLoading
+                ? CircularProgressIndicator(color: Colors.white)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name ?? 'Pengguna',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        role ?? '',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                        ),
+                      ),
+                     
+                    ],
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'staf@gmail.com',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
             Spacer(),
             IconButton(
               icon: Container(

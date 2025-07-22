@@ -11,46 +11,58 @@ class _LoginPageState extends State<LoginPage> {
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
-  void login() async {
-    if (_formKey.currentState!.validate()) {
-      final email = '${usernameController.text.trim()}@apotik.com';
-      final password = passwordController.text;
+ void login() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() {
+      _isLoading = true;
+    });
 
-      try {
-        final response = await Supabase.instance.client.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
+    final email = '${usernameController.text.trim()}@apotik.com';
+    final password = passwordController.text;
 
-        if (response.user != null) {
-          Navigator.pushReplacementNamed(context, '/home');
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Login gagal: Pengguna tidak ditemukan'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } on AuthException catch (e) {
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      if (response.user != null) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login gagal: ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Terjadi kesalahan tak terduga.'),
+            content: Text('Login gagal: Pengguna tidak ditemukan'),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } on AuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login gagal: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Terjadi kesalahan tak terduga.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
+}
 
   @override
   void dispose() {
@@ -182,7 +194,7 @@ class _LoginPageState extends State<LoginPage> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: login,
+                        onPressed:  _isLoading ? null : login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF03A6A1),
                           shape: RoundedRectangleBorder(
@@ -190,14 +202,23 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           elevation: 3,
                         ),
-                        child: const Text(
-                          'MASUK',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child:_isLoading
+    ? const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          strokeWidth: 2,
+        ),
+      )
+    : const Text(
+        'MASUK',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
                       ),
                     ),
                   ],
