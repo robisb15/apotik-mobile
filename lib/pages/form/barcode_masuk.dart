@@ -1,33 +1,26 @@
-// File: entry_manual_page.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:barcode_scan2/barcode_scan2.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ScanBarcodePage extends StatefulWidget {
+class EntryScanBarcodePage extends StatefulWidget {
   @override
-  _ScanBarcodePageState createState() => _ScanBarcodePageState();
+  _EntryScanBarcodePageState createState() => _EntryScanBarcodePageState();
 }
 
-class _ScanBarcodePageState extends State<ScanBarcodePage> {
+class _EntryScanBarcodePageState extends State<EntryScanBarcodePage> {
   final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-  Map<String, dynamic>? _selectedProduct;
-  Map<String, dynamic>? _selectedDistributor;
-
-  final _batchController = TextEditingController();
-  final _expController = TextEditingController();
-  final _qtyController = TextEditingController();
   final _fakturController = TextEditingController();
   final _tanggalController = TextEditingController();
   final _catatanController = TextEditingController();
-  final _hargaController = TextEditingController();
 
-  bool _isLoading = false;
-  bool _scannerVisible = true;
-  String? _barcodeData;
   List<Map<String, dynamic>> _distributors = [];
+  Map<String, dynamic>? _selectedDistributor;
+
+  List<Map<String, dynamic>> _scannedProducts = [];
+  int _totalKeseluruhan = 0;
 
   @override
   void initState() {
@@ -42,34 +35,66 @@ class _ScanBarcodePageState extends State<ScanBarcodePage> {
     });
   }
 
-  Future<void> _onBarcodeDetected(String barcode) async {
-    setState(() => _isLoading = true);
-    final res = await supabase
-        .from('products')
-        .select('id,nama_produk,produsen,harga_jual,satuan,barcode')
-        .eq('barcode', barcode)
-        .limit(1)
-        .maybeSingle();
-    print('Barcode Detected: $barcode');
+  Future<void> _scanBarcode() async {
+    final result = await BarcodeScanner.scan();
+    final barcode = result.rawContent;
+
+    if (barcode.isNotEmpty) {
+      final product = await supabase
+          .from('products')
+          .select()
+          .eq('barcode', barcode)
+          .maybeSingle();
+
+      if (product != null) {
+        setState(() {
+          _scannedProducts.add({
+            'product': product,
+            'batchController': TextEditingController(),
+            'expController': TextEditingController(),
+            'qtyController': TextEditingController(),
+            'subtotalController': TextEditingController(),
+            'subtotal': 0,
+          });
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Produk tidak ditemukan untuk barcode $barcode'),
+          ),
+        );
+      }
+    }
+  }
+
+  void _updateTotalKeseluruhan() {
+    int total = 0;
+    for (final item in _scannedProducts) {
+      final subtotalText = item['subtotalController'].text;
+      final subtotal = int.tryParse(subtotalText) ?? 0;
+      item['subtotal'] = subtotal;
+      total += subtotal;
+    }
     setState(() {
-      _scannerVisible = false;
-      _barcodeData = barcode;
-      _selectedProduct = res;
-      _isLoading = false;
+      _totalKeseluruhan = total;
     });
   }
 
   Future<void> _saveAll() async {
     if (!_formKey.currentState!.validate() ||
-        _selectedProduct == null ||
-        _selectedDistributor == null) {
+        _selectedDistributor == null ||
+        _scannedProducts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pastikan semua data diisi dengan benar')),
+        SnackBar(
+          content: Text('Lengkapi data dan tambahkan produk terlebih dahulu'),
+        ),
       );
       return;
     }
 
     try {
+      _updateTotalKeseluruhan();
+
       final receipt = await supabase
           .from('receipts')
           .insert({
@@ -77,44 +102,47 @@ class _ScanBarcodePageState extends State<ScanBarcodePage> {
               'yyyy-MM-dd',
             ).parse(_tanggalController.text).toIso8601String(),
             'no_faktur': _fakturController.text,
-            'total_harga': int.parse(_hargaController.text.replaceAll('.', '')),
+            'total_harga': _totalKeseluruhan,
             'catatan': _catatanController.text,
           })
           .select()
           .single();
 
-      final batch = await supabase
-          .from('product_batches')
-          .insert({
-            'product_id': _selectedProduct!['id'],
-            'distributor_id': _selectedDistributor!['id'],
-            'batch_code': _batchController.text,
-            'exp': DateFormat(
-              'yyyy-MM-dd',
-            ).parse(_expController.text).toIso8601String(),
-            'qty_masuk': int.parse(_qtyController.text),
-            'qty_keluar': 0,
-            'qty_sisa': int.parse(_qtyController.text),
-          })
-          .select()
-          .single();
+      for (final item in _scannedProducts) {
+        final product = item['product'];
+        final batch = await supabase
+            .from('product_batches')
+            .insert({
+              'product_id': product['id'],
+              'distributor_id': _selectedDistributor!['id'],
+              'batch_code': item['batchController'].text,
+              'exp': DateFormat(
+                'yyyy-MM-dd',
+              ).parse(item['expController'].text).toIso8601String(),
+              'qty_masuk': int.parse(item['qtyController'].text),
+              'qty_keluar': 0,
+              'qty_sisa': int.parse(item['qtyController'].text),
+            })
+            .select()
+            .single();
 
-      await supabase.from('receipt_details').insert({
-        'receipt_id': receipt['id'],
-          'product_batch_id':batch['id'],
-        'distributor_id': _selectedDistributor!['id'],
-        'exp': DateFormat(
-          'yyyy-MM-dd',
-        ).parse(_expController.text).toIso8601String(),
-        'qty_diterima': int.parse(_qtyController.text),
-        'batch_code': _batchController.text,
-      });
+        await supabase.from('receipt_details').insert({
+          'receipt_id': receipt['id'],
+          'product_batch_id': batch['id'],
+          'distributor_id': _selectedDistributor!['id'],
+          'exp': DateFormat(
+            'yyyy-MM-dd',
+          ).parse(item['expController'].text).toIso8601String(),
+          'qty_diterima': int.parse(item['qtyController'].text),
+          'batch_code': item['batchController'].text,
+          'subtotal': item['subtotal'],
+        });
+      }
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Data berhasil disimpan')));
-      _resetForm();
-       Navigator.pop(context);
+      Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -122,214 +150,198 @@ class _ScanBarcodePageState extends State<ScanBarcodePage> {
     }
   }
 
-  void _resetForm() {
-    setState(() {
-      _selectedProduct = null;
-      _selectedDistributor = null;
-      _batchController.clear();
-      _expController.clear();
-      _qtyController.clear();
-      _fakturController.clear();
-      _tanggalController.clear();
-      _catatanController.clear();
-      _hargaController.clear();
-      _scannerVisible = true;
-      _barcodeData = null;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Entry Batch Produk Masuk'),
-        backgroundColor: Color(0xFF03A6A1),
+        title: Text('Scan Barcode Produk Masuk'),
+        backgroundColor: Colors.teal,
       ),
-      body: Column(
-        children: [
-          if (_scannerVisible)
-            Expanded(
-              flex: 1,
-              child: Stack(
-                children: [
-                  MobileScanner(
-                    onDetect: (barcodeCapture) {
-                      final code =
-                          barcodeCapture.barcodes.firstOrNull?.rawValue;
-                      if (code != null) _onBarcodeDetected(code);
-                    },
-                  ),
-                  Center(
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.green, width: 3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: _scanBarcode,
+        child: Icon(Icons.qr_code_scanner),
+        backgroundColor: Colors.teal,
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _fakturController,
+                decoration: InputDecoration(
+                  labelText: 'No Faktur',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
               ),
-            )
-          else
-            ElevatedButton.icon(
-              onPressed: _resetForm,
-              icon: Icon(Icons.refresh),
-              label: Text('Scan Ulang'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            ),
-          if (!_scannerVisible)
-            Expanded(
-              flex: 2,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      Text(
-                        '${_selectedProduct?['nama_produk'] ?? 'Produk Tidak Diketahui'} – ${_selectedProduct?['produsen'] ?? ''}',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Barcode : ${_selectedProduct?['barcode'] ?? 'Produk Tidak Diketahui'}',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Rp${_selectedProduct?['harga_jual'] ?? '-'} / ${_selectedProduct?['satuan'] ?? ''}',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-
-                      SizedBox(height: 16),
-                      DropdownButtonFormField<Map<String, dynamic>>(
-                        value: _selectedDistributor,
-                        items: _distributors.map((d) {
-                          return DropdownMenuItem(
-                            value: d,
-                            child: Text(d['nama']),
-                          );
-                        }).toList(),
+              SizedBox(height: 16),
+              TextFormField(
+                controller: _tanggalController,
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: 'Tanggal Masuk',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2023),
+                    lastDate: DateTime(2035),
+                  );
+                  if (date != null) {
+                    _tanggalController.text = DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(date);
+                  }
+                },
+              ),
+              SizedBox(height: 16),
+              Autocomplete<Map<String, dynamic>>(
+                optionsBuilder: (text) => _distributors.where(
+                  (d) =>
+                      d['nama'].toLowerCase().contains(text.text.toLowerCase()),
+                ),
+                displayStringForOption: (d) => d['nama'],
+                onSelected: (d) => setState(() => _selectedDistributor = d),
+                fieldViewBuilder:
+                    (context, controller, focusNode, onFieldSubmitted) {
+                      return TextFormField(
+                        controller: controller,
+                        focusNode: focusNode,
                         decoration: InputDecoration(
                           labelText: 'Distributor',
                           border: OutlineInputBorder(),
                         ),
-                        validator: (v) => v == null ? 'Wajib dipilih' : null,
-                        onChanged: (v) =>
-                            setState(() => _selectedDistributor = v),
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _batchController,
-                        decoration: InputDecoration(
-                          labelText: 'Kode Batch',
-                          border: OutlineInputBorder(),
-                        ),
                         validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
+                            _selectedDistributor == null ? 'Wajib pilih' : null,
+                      );
+                    },
+              ),
+              SizedBox(height: 16),
+              TextFormField(
+                controller: _catatanController,
+                decoration: InputDecoration(
+                  labelText: 'Catatan',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+              SizedBox(height: 24),
+              ..._scannedProducts.map((item) {
+                final product = item['product'];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Produk: ${product['nama_produk']}',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 8),
+                    TextFormField(
+                      controller: item['batchController'],
+                      decoration: InputDecoration(
+                        labelText: 'Kode Batch',
+                        border: OutlineInputBorder(),
                       ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _expController,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Tanggal Expired',
-                          border: OutlineInputBorder(),
-                        ),
-                        onTap: () async {
-                          final d = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime(2035),
-                          );
-                          if (d != null)
-                            _expController.text = DateFormat(
-                              'yyyy-MM-dd',
-                            ).format(d);
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Wajib diisi' : null,
+                    ),
+                    SizedBox(height: 8),
+                    TextFormField(
+                      controller: item['qtyController'],
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Qty',
+                        suffixText: 'pcs',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => v == null || int.tryParse(v) == null
+                          ? 'Wajib angka'
+                          : null,
+                    ),
+                    SizedBox(height: 8),
+                    TextFormField(
+                      controller: item['subtotalController'],
+                      keyboardType: TextInputType.number,
+                      onChanged: (_) => _updateTotalKeseluruhan(),
+                      decoration: InputDecoration(
+                        labelText: 'Subtotal (Rp)',
+                        prefixText: 'Rp ',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => v == null || int.tryParse(v) == null
+                          ? 'Harus angka'
+                          : null,
+                    ),
+                    SizedBox(height: 8),
+                    TextFormField(
+                      controller: item['expController'],
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'Tanggal Expired',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Wajib isi' : null,
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2023),
+                          lastDate: DateTime(2035),
+                        );
+                        if (date != null) {
+                          item['expController'].text = DateFormat(
+                            'yyyy-MM-dd',
+                          ).format(date);
+                        }
+                      },
+                    ),
+                    SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _scannedProducts.remove(item);
+                            _updateTotalKeseluruhan();
+                          });
                         },
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _qtyController,
-                        decoration: InputDecoration(
-                          labelText: 'Qty Masuk',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _hargaController,
-                        decoration: InputDecoration(
-                          labelText: 'Total Harga',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _fakturController,
-                        decoration: InputDecoration(
-                          labelText: 'No Faktur',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _tanggalController,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Tanggal Masuk',
-                          border: OutlineInputBorder(),
-                        ),
-                        onTap: () async {
-                          final d = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2023),
-                            lastDate: DateTime(2035),
-                          );
-                          if (d != null)
-                            _tanggalController.text = DateFormat(
-                              'yyyy-MM-dd',
-                            ).format(d);
-                        },
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _catatanController,
-                        decoration: InputDecoration(
-                          labelText: 'Catatan',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: _saveAll,
-                        child: Text('Simpan Semua Data'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: Size(double.infinity, 48),
-                          backgroundColor: Color(0xFF03A6A1),
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        label: Text(
+                          'Hapus',
+                          style: TextStyle(color: Colors.red),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    Divider(thickness: 1.5),
+                  ],
+                );
+              }).toList(),
+              SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Total Keseluruhan: Rp $_totalKeseluruhan',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
-            ),
-        ],
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _saveAll,
+                child: Text('Simpan Semua Data'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: Size(double.infinity, 48),
+                  backgroundColor: Colors.teal,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

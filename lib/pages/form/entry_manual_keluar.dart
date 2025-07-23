@@ -1,4 +1,3 @@
-// Entry manual untuk Barang Keluar (dengan pilihan batch)
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -15,31 +14,30 @@ class _EntryManualBarangKeluarPageState
   final _formKey = GlobalKey<FormState>();
 
   List<Map<String, dynamic>> _batches = [];
-  Map<String, dynamic>? _selectedBatch;
+  List<Map<String, dynamic>> _productOutEntries = [];
 
-  final _qtyController = TextEditingController();
   final _fakturController = TextEditingController();
   final _tanggalController = TextEditingController();
   final _tujuanController = TextEditingController(text: '');
-
-  final _totalHargaController = TextEditingController();
   final _catatanController = TextEditingController();
 
+  int _totalKeseluruhan = 0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadBatches();
+    _addProductOutEntry();
   }
 
   Future<void> _loadBatches() async {
     setState(() => _isLoading = true);
-    final res = await supabase
-        .from('product_batches')
-        .select(
-          'id, batch_code, exp, product_id, products(nama_produk, barcode, produsen),qty_sisa,qty_masuk,qty_keluar',
-        );
+    final res = await supabase.from('product_batches').select('''
+      id, batch_code, exp, product_id, 
+      products(nama_produk, barcode, produsen, harga_jual), 
+      qty_sisa, qty_masuk, qty_keluar
+    ''');
 
     setState(() {
       _batches = List<Map<String, dynamic>>.from(res);
@@ -47,10 +45,49 @@ class _EntryManualBarangKeluarPageState
     });
   }
 
-  Future<void> _saveData() async {
-    if (!_formKey.currentState!.validate() || _selectedBatch == null) {
+  void _addProductOutEntry() {
+    setState(() {
+      _productOutEntries.add({
+        'selectedBatch': null,
+        'qtyController': TextEditingController(),
+        'hargaJual': 0,
+        'subtotal': 0,
+      });
+    });
+  }
+
+  void _removeProductOutEntry(int index) {
+    setState(() {
+      _productOutEntries.removeAt(index);
+      _updateTotalHarga();
+    });
+  }
+
+  void _updateTotalHarga() {
+    int total = 0;
+    for (final item in _productOutEntries) {
+      final qtyText = item['qtyController'].text;
+      final qty = int.tryParse(qtyText) ?? 0;
+      final harga = item['hargaJual'] ?? 0;
+      item['subtotal'] = (qty * harga).toInt();
+      total += item['subtotal'] as int;
+    }
+    setState(() {
+      _totalKeseluruhan = total;
+    });
+  }
+
+  Future<void> _saveAll() async {
+    if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pastikan semua data terisi dengan benar')),
+        SnackBar(content: Text('Pastikan semua input diisi dengan benar')),
+      );
+      return;
+    }
+
+    if (_productOutEntries.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Minimal satu produk harus ditambahkan')),
       );
       return;
     }
@@ -59,46 +96,50 @@ class _EntryManualBarangKeluarPageState
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('User belum login');
 
-      final tanggal = DateFormat('yyyy-MM-dd').parse(_tanggalController.text);
+      _updateTotalHarga();
+
       final outgoing = await supabase
           .from('outgoings')
           .insert({
             'no_faktur': _fakturController.text,
-            'tanggal': tanggal.toIso8601String(),
+            'tanggal': _tanggalController.text,
             'tujuan': _tujuanController.text,
             'user_id': user.id,
-            'total_harga': int.parse(
-              _totalHargaController.text.replaceAll('.', ''),
-            ),
+            'total_harga': _totalKeseluruhan,
             'catatan': _catatanController.text,
           })
           .select()
           .single();
 
-      await supabase.from('outgoing_details').insert({
-        'outgoing_id': outgoing['id'],
-        'product_batch_id': _selectedBatch!['id'],
-        'qty_keluar': int.parse(_qtyController.text),
-      });
-      // Update qty_keluar dan qty_sisa di product_batches
-      final batchId = _selectedBatch!['id'];
+      for (final item in _productOutEntries) {
+        final batch = item['selectedBatch'];
+        final qty = int.parse(item['qtyController'].text);
+        final harga = item['hargaJual'] ?? 0;
+        final subtotal = qty * harga;
 
-      // Ambil data qty_keluar dan qty_masuk sebelumnya
-      final batchData = await supabase
-          .from('product_batches')
-          .select('qty_masuk, qty_keluar')
-          .eq('id', batchId)
-          .single();
+        await supabase.from('outgoing_details').insert({
+          'outgoing_id': outgoing['id'],
+          'product_batch_id': batch['id'],
+          'qty_keluar': qty,
+          'subtotal': subtotal,
+        });
 
-      final qtyMasuk = batchData['qty_masuk'] ?? 0;
-      final qtyKeluarLama = batchData['qty_keluar'] ?? 0;
-      final qtyKeluarBaru = qtyKeluarLama + int.parse(_qtyController.text);
-      final qtySisaBaru = qtyMasuk - qtyKeluarBaru;
+        final batchData = await supabase
+            .from('product_batches')
+            .select('qty_masuk, qty_keluar')
+            .eq('id', batch['id'])
+            .single();
 
-      await supabase
-          .from('product_batches')
-          .update({'qty_keluar': qtyKeluarBaru, 'qty_sisa': qtySisaBaru})
-          .eq('id', batchId);
+        final qtyMasuk = batchData['qty_masuk'] ?? 0;
+        final qtyKeluarLama = batchData['qty_keluar'] ?? 0;
+        final qtyKeluarBaru = qtyKeluarLama + qty;
+        final qtySisaBaru = qtyMasuk - qtyKeluarBaru;
+
+        await supabase
+            .from('product_batches')
+            .update({'qty_keluar': qtyKeluarBaru, 'qty_sisa': qtySisaBaru})
+            .eq('id', batch['id']);
+      }
 
       ScaffoldMessenger.of(
         context,
@@ -126,79 +167,6 @@ class _EntryManualBarangKeluarPageState
                 key: _formKey,
                 child: Column(
                   children: [
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: _selectedBatch,
-                      items: _batches.map((batch) {
-                        final product = batch['products'];
-                        return DropdownMenuItem(
-                          value: batch,
-                          child: Text(
-                            '${batch['batch_code']} - ${product['nama_produk']}',
-                          ),
-                        );
-                      }).toList(),
-                      decoration: InputDecoration(
-                        labelText: 'Pilih Kode Batch',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (v) => setState(() => _selectedBatch = v),
-                      validator: (v) => v == null ? 'Pilih batch' : null,
-                    ),
-                    if (_selectedBatch != null) ...[
-                      SizedBox(height: 16),
-                      _buildInfoRow(
-                        'Nama Produk',
-                        _selectedBatch!['products']['nama_produk'] ?? '',
-                      ),
-                      _buildInfoRow(
-                        'Barcode',
-                        (_selectedBatch!['products']['barcode'] ?? '')
-                            .toString(),
-                      ),
-                      _buildInfoRow(
-                        'Produsen',
-                        _selectedBatch!['products']['produsen'] ?? '',
-                      ),
-                      _buildInfoRow(
-                        'Stok Tersisa',
-                        '${_selectedBatch!['qty_sisa'] ?? ''}',
-                      ),
-                      _buildInfoRow(
-                        'Tanggal Exp',
-                        DateFormat(
-                          'dd/MM/yyyy',
-                        ).format(DateTime.parse(_selectedBatch!['exp'] ?? '')),
-                      ),
-                    ],
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _qtyController,
-                      decoration: InputDecoration(
-                        labelText: 'Qty Keluar',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-                    ),
-                    SizedBox(height: 16),
-                   DropdownButtonFormField<String>(
-  value: _tujuanController.text.isNotEmpty ? _tujuanController.text : null,
-  items: const [
-    DropdownMenuItem(value: 'Resep', child: Text('Resep')),
-    DropdownMenuItem(value: 'Swamedikasi', child: Text('Swamedikasi')),
-  ],
-  onChanged: (value) {
-    setState(() => _tujuanController.text = value ?? '');
-  },
-  decoration: const InputDecoration(
-    labelText: 'Tujuan',
-    border: OutlineInputBorder(),
-  ),
-  validator: (value) =>
-      value == null || value.isEmpty ? 'Tujuan wajib dipilih' : null,
-),
-                    SizedBox(height: 16),
                     TextFormField(
                       controller: _fakturController,
                       decoration: InputDecoration(
@@ -206,14 +174,14 @@ class _EntryManualBarangKeluarPageState
                         border: OutlineInputBorder(),
                       ),
                       validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                          v == null || v.isEmpty ? 'Wajib isi faktur' : null,
                     ),
                     SizedBox(height: 16),
                     TextFormField(
                       controller: _tanggalController,
                       readOnly: true,
                       decoration: InputDecoration(
-                        labelText: 'Tanggal Keluar',
+                        labelText: 'Tanggal',
                         border: OutlineInputBorder(),
                       ),
                       onTap: () async {
@@ -223,32 +191,37 @@ class _EntryManualBarangKeluarPageState
                           firstDate: DateTime(2023),
                           lastDate: DateTime(2035),
                         );
-                        if (picked != null)
+                        if (picked != null) {
                           _tanggalController.text = DateFormat(
                             'yyyy-MM-dd',
                           ).format(picked);
+                        }
                       },
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Tanggal wajib diisi'
-                          : null,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Wajib isi tanggal' : null,
                     ),
-                    SizedBox(height: 24),
                     SizedBox(height: 16),
-                    TextFormField(
-                      controller: _totalHargaController,
-                      decoration: InputDecoration(
-                        labelText: 'Total Harga (Rp)',
-                        border: OutlineInputBorder(),
-                        prefixText: 'Rp ',
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Total harga wajib diisi';
-                        if (int.tryParse(v.replaceAll('.', '')) == null)
-                          return 'Total harga harus angka';
-                        return null;
+                    DropdownButtonFormField<String>(
+                      value: _tujuanController.text.isNotEmpty
+                          ? _tujuanController.text
+                          : null,
+                      items: const [
+                        DropdownMenuItem(value: 'Resep', child: Text('Resep')),
+                        DropdownMenuItem(
+                          value: 'Swamedikasi',
+                          child: Text('Swamedikasi'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _tujuanController.text = value ?? '');
                       },
+                      decoration: InputDecoration(
+                        labelText: 'Tujuan',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'Wajib pilih tujuan'
+                          : null,
                     ),
                     SizedBox(height: 16),
                     TextFormField(
@@ -259,10 +232,40 @@ class _EntryManualBarangKeluarPageState
                       ),
                       maxLines: 2,
                     ),
-
+                    SizedBox(height: 24),
+                    Text(
+                      'Produk yang Dikeluarkan',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    ..._productOutEntries.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      return _buildProductOutEntry(item, index);
+                    }),
+                    SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'Total: Rp $_totalKeseluruhan',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _addProductOutEntry,
+                      icon: Icon(Icons.add),
+                      label: Text('Tambah Produk'),
+                    ),
+                    SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _saveData,
-                      child: Text('Simpan Data'),
+                      onPressed: _saveAll,
+                      child: Text('Simpan Semua'),
                       style: ElevatedButton.styleFrom(
                         minimumSize: Size(double.infinity, 48),
                         backgroundColor: Color(0xFF03A6A1),
@@ -275,33 +278,121 @@ class _EntryManualBarangKeluarPageState
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              '$label:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+  Widget _buildProductOutEntry(Map<String, dynamic> item, int index) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 16),
+        Autocomplete<Map<String, dynamic>>(
+          optionsBuilder: (TextEditingValue textEditingValue) {
+            // Tampilkan semua saat field kosong
+            return _batches.where((batch) {
+              final product = batch['products'];
+              final nama = product['nama_produk']?.toLowerCase() ?? '';
+              final batchCode = batch['batch_code']?.toLowerCase() ?? '';
+              final search = textEditingValue.text.toLowerCase();
+              return nama.contains(search) || batchCode.contains(search);
+            });
+          },
+          displayStringForOption: (option) {
+            final product = option['products'];
+            return '${option['batch_code']} - ${product['nama_produk']}';
+          },
+          onSelected: (value) {
+            setState(() {
+              item['selectedBatch'] = value;
+              item['hargaJual'] = value['products']['harga_jual'] ?? 0;
+              _updateTotalHarga();
+            });
+          },
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            // Trik: trigger suggestion saat field di-tap
+            return Focus(
+              onFocusChange: (hasFocus) {
+                if (hasFocus && controller.text.isEmpty) {
+                  controller.text = ' '; // trigger optionsBuilder
+                  controller.selection = TextSelection.fromPosition(
+                    TextPosition(offset: controller.text.length),
+                  );
+                }
+              },
+              child: TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  labelText: 'Pilih Batch',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    item['selectedBatch'] == null ? 'Wajib pilih batch' : null,
+              ),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final option = options.elementAt(index);
+                    final product = option['products'];
+                    return ListTile(
+                      title: Text(
+                        '${option['batch_code']} - ${product['nama_produk']}',
+                      ),
+                      subtitle: Text(
+                        'Exp: ${option['exp']}, Sisa: ${option['qty_sisa']}',
+                      ),
+                      onTap: () => onSelected(option),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+
+        SizedBox(height: 8),
+        TextFormField(
+          controller: item['qtyController'],
+          decoration: InputDecoration(
+            labelText: 'Qty Keluar',
+            border: OutlineInputBorder(),
           ),
-          Expanded(flex: 3, child: Text(value)),
-        ],
-      ),
+          keyboardType: TextInputType.number,
+          onChanged: (_) => _updateTotalHarga(),
+          validator: (v) =>
+              (v == null || int.tryParse(v) == null) ? 'Harus angka' : null,
+        ),
+        SizedBox(height: 8),
+        Text('Subtotal: Rp ${item['subtotal']}'),
+        SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => _removeProductOutEntry(index),
+            icon: Icon(Icons.delete, color: Colors.red),
+            label: Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ),
+        Divider(),
+      ],
     );
   }
 
   @override
   void dispose() {
-    _qtyController.dispose();
     _fakturController.dispose();
     _tanggalController.dispose();
     _tujuanController.dispose();
-    _totalHargaController.dispose();
     _catatanController.dispose();
+    for (final item in _productOutEntries) {
+      item['qtyController'].dispose();
+    }
     super.dispose();
   }
 }

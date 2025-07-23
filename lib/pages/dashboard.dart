@@ -28,25 +28,44 @@ class _DashboardState extends State<Dashboard> {
   }
 
  Future<void> _loadData() async {
-  if (!mounted) return;
+    if (!mounted) return;
 
-  setState(() => isLoading = true);
+    setState(() => isLoading = true);
 
-  await Future.wait([
-    fetchDashboardData(),
-    _loadBarangMasuk(),
-    _loadBarangKeluar(),
-  ]);
+    await Future.wait([
+      fetchDashboardData(),
+      _loadBarangMasuk(),
+      _loadBarangKeluar(),
+    ]);
 
-  if (!mounted) return;
+    if (!mounted) return;
 
-  setState(() => isLoading = false);
-}
+    setState(() => isLoading = false);
+  }
+
+
+  //  Future<void> _loadData() async {
+  //   if (!mounted) return;
+
+  //   setState(() => isLoading = true);
+
+  //   await Future.wait([
+  //     fetchDashboardData(),
+  //     _loadBarangMasuk(),
+  //     _loadBarangKeluar(),
+  //   ]);
+
+  //   if (!mounted) return;
+
+  //   setState(() => isLoading = false);
+  // }
 
   Future<void> _loadBarangMasuk() async {
     final receipts = await supabase.from('receipts').select();
     final details = await supabase.from('receipt_details').select();
-    final products = await supabase.from('product_batches').select('*,products(*)');
+    final products = await supabase
+        .from('product_batches')
+        .select('*,products(*)');
     final distributors = await supabase.from('distributors').select();
 
     List<Map<String, dynamic>> results = [];
@@ -57,10 +76,12 @@ class _DashboardState extends State<Dashboard> {
       );
 
       for (var detail in relatedDetails) {
-      final product = products.firstWhere(
-  (p) => p['id'] == detail['product_batch_id'],
-  orElse: () => {'products': {'nama_produk': '-', 'satuan': '-'}},
-)['products'];
+        final product = products.firstWhere(
+          (p) => p['id'] == detail['product_batch_id'],
+          orElse: () => {
+            'products': {'nama_produk': '-', 'satuan': '-'},
+          },
+        )['products'];
 
         final distributor = distributors.firstWhere(
           (d) => d['id'] == detail['distributor_id'],
@@ -88,7 +109,10 @@ class _DashboardState extends State<Dashboard> {
   Future<void> _loadBarangKeluar() async {
     final outgoings = await supabase.from('outgoings').select();
     final details = await supabase.from('outgoing_details').select();
-    final batches = await supabase.from('product_batches').select().filter('deleted_at','is',null);
+    final batches = await supabase
+        .from('product_batches')
+        .select()
+        .filter('deleted_at', 'is', null);
     final products = await supabase.from('products').select();
 
     List<Map<String, dynamic>> results = [];
@@ -193,7 +217,7 @@ class _DashboardState extends State<Dashboard> {
           ),
         ),
         title: Text(
-          data['nama_produk']??'',
+          data['nama_produk'] ?? '',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
@@ -231,7 +255,6 @@ class _DashboardState extends State<Dashboard> {
         backgroundColor: Color(0xFF03A6A1),
         elevation: 0.5,
         foregroundColor: Colors.black,
-       
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
@@ -334,19 +357,17 @@ class _DashboardState extends State<Dashboard> {
   Widget _buildStatsCards() {
     return Container(
       padding: EdgeInsets.all(16),
-      decoration:
-      BoxDecoration(
-  color: Color(0xFF03A6A1), // pilih salah satu
-  borderRadius: BorderRadius.circular(16),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(0.05),
-      blurRadius: 10,
-      offset: Offset(0, 4),
-    ),
-  ],
-)
-,
+      decoration: BoxDecoration(
+        color: Color(0xFF03A6A1), // pilih salah satu
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
@@ -391,7 +412,7 @@ class _DashboardState extends State<Dashboard> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color:Color(0xFFCFFFE2),
+            color: Color(0xFFCFFFE2),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: color, size: 20),

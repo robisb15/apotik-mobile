@@ -15,7 +15,7 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _contactController = TextEditingController();
-  
+
   Map<String, dynamic>? _editingDistributor;
   bool _isLoading = true;
 
@@ -27,11 +27,28 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
 
   Future<void> _loadDistributors() async {
     setState(() => _isLoading = true);
-    final response = await supabase.from('distributors').select();
-    setState(() {
-      _distributors = List<Map<String, dynamic>>.from(response);
-      _isLoading = false;
-    });
+    try {
+      final response = await supabase.from('distributors').select();
+      if (response != null && response is List) {
+        setState(() {
+          _distributors = List<Map<String, dynamic>>.from(response);
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _distributors = [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _distributors = [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat data distributor')));
+    }
   }
 
   Future<void> _saveDistributor() async {
@@ -43,7 +60,6 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
       };
 
       if (_editingDistributor == null) {
-      
         await supabase.from('distributors').insert(distributor);
       } else {
         await supabase
@@ -76,9 +92,9 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
   ]) {
     _editingDistributor = distributor;
     if (distributor != null) {
-      _nameController.text = distributor['nama'];
-      _addressController.text = distributor['alamat'];
-      _contactController.text = distributor['kontak'];
+      _nameController.text = distributor['nama'] ?? '';
+      _addressController.text = distributor['alamat'] ?? '';
+      _contactController.text = distributor['kontak'] ?? "";
     } else {
       _resetForm();
     }
@@ -153,7 +169,6 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
                       : null,
                 ),
                 SizedBox(height: 16),
-                
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -173,6 +188,29 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmDelete(Map<String, dynamic> dist) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Hapus Distributor'),
+        content: Text('Yakin ingin menghapus ${dist['nama']}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteDistributor(dist['id']);
+            },
+            child: Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
@@ -223,82 +261,67 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
           ),
           SizedBox(height: 16),
           Expanded(
-            child: _distributors.isEmpty
-                ? Center(child: Text('Belum ada distributor'))
-                : ListView.builder(
-                    itemCount: _distributors.length,
-                    itemBuilder: (context, index) {
-                      final dist = _distributors[index];
-                      return Card(
-                        margin: EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: ListTile(
-                          leading: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: Color(0xFF03A6A1).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.local_shipping,
-                              color: Color(0xFF03A6A1),
-                            ),
+            child: RefreshIndicator(
+              onRefresh: _loadDistributors,
+              child: _distributors.isEmpty
+                  ? ListView(
+                      children: [
+                        SizedBox(height: 100),
+                        Center(child: Text('Belum ada distributor')),
+                      ],
+                    )
+                  : ListView.builder(
+                      itemCount: _distributors.length,
+                      itemBuilder: (context, index) {
+                        final dist = _distributors[index];
+                        return Card(
+                          margin: EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          title: Text(
-                            dist['nama'],
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(dist['alamat']),
-                              Text('Kontak: ${dist['kontak']}'),
-                            ],
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.edit),
-                                onPressed: () =>
-                                    _showDistributorForm(context, dist),
+                          child: ListTile(
+                            leading: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Color(0xFF03A6A1).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _confirmDelete(dist),
+                              child: Icon(
+                                Icons.local_shipping,
+                                color: Color(0xFF03A6A1),
                               ),
-                            ],
+                            ),
+                            title: Text(
+                              dist['nama'] ?? '-',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(dist['alamat'] ?? '-'),
+                                Text('Kontak: ${dist['kontak'] ?? '-'}'),
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.edit),
+                                  onPressed: () =>
+                                      _showDistributorForm(context, dist),
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _confirmDelete(dist),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(Map<String, dynamic> dist) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Hapus Distributor'),
-        content: Text('Yakin ingin menghapus ${dist['name']}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deleteDistributor(dist['id']);
-            },
-            child: Text('Hapus', style: TextStyle(color: Colors.red)),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       ),

@@ -69,7 +69,9 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
   Future<void> loadSubKategoris() async {
     setState(() => _isLoading = true);
     try {
-      final response = await client.from('sub_kategori').select('*, kategori(*)');
+      final response = await client
+          .from('sub_kategori')
+          .select('*, kategori(*)');
       setState(() {
         subKategoris = List<Map<String, dynamic>>.from(response);
       });
@@ -111,59 +113,57 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
   Future<void> fetchBarangMasuk() async {
     setState(() => _isLoading = true);
     try {
-      final query = client
+      final response = await client
           .from('receipts')
           .select('''
-            id,
-            tanggal,
-            no_faktur,
-            total_harga,
-            receipt_details:receipt_details(
-              qty_diterima,
-              product_batches:product_batch_id(
-                batch_code,
-                exp,
-                products:product_id(
-                  nama_produk,
-                  kode_produk,
-                  satuan
-                ),
-                distributors:distributor_id(
-                  nama
-                )
+          id,
+          tanggal,
+          no_faktur,
+          total_harga,
+          receipt_details:receipt_details(
+            qty_diterima,
+            product_batches:product_batch_id(
+              batch_code,
+              exp,
+              products:product_id(
+                nama_produk,
+                kode_produk,
+                satuan
+              ),
+              distributors:distributor_id(
+                nama
               )
             )
-          ''');
-         
+          )
+        ''')
+          .order('tanggal', ascending: false);
 
-      if (_dateRange != null) {
-        query
-          .gte('tanggal', _dateRange!.start.toIso8601String())
-          .lte('tanggal', _dateRange!.end.toIso8601String());
+      // Transform data dengan benar
+      final List<Map<String, dynamic>> transformedData = [];
+
+      for (var item in response) {
+        final detailsList = item['receipt_details'] as List?;
+        if (detailsList != null && detailsList.isNotEmpty) {
+          for (var detail in detailsList) {
+            final batch = detail['product_batches'];
+            transformedData.add({
+              'id': item['id'],
+              'tanggal': item['tanggal'],
+              'no_faktur': item['no_faktur'],
+              'total_harga': item['total_harga'],
+              'product': batch?['products'],
+              'distributor': batch?['distributors'],
+              'batch_code': batch?['batch_code'],
+              'exp': batch?['exp'],
+              'qty_diterima': detail['qty_diterima'],
+              'satuan': batch?['products']?['satuan'],
+            });
+          }
+        }
       }
-       query.order('tanggal', ascending: false);
-
-      final response = await query;
-      
-      // Transform data for easier display
-       final List<Map<String, dynamic>> transformedData = (response as List).map((item) {
-      final details = (item['receipt_details'] as List?)?.firstOrNull;
-      return {
-        'id': item['id'],
-        'tanggal': item['tanggal'],
-        'no_faktur': item['no_faktur'],
-        'total_harga': item['total_harga'],
-        'product': details?['product_batches']?['products'],
-        'distributor': details?['product_batches']?['distributors'],
-        'batch_code': details?['product_batches']?['batch_code'],
-        'exp': details?['product_batches']?['exp'],
-        'qty_diterima': details?['qty_diterima'],
-        'satuan': details?['product_batches']?['products']?['satuan'],
-      };
-    }).toList();
 
       setState(() {
-        barangMasuk = List<Map<String, dynamic>>.from(transformedData);
+        barangMasuk = transformedData;
       });
     } catch (e) {
       _showErrorSnackbar('Gagal memuat barang masuk: $e');
@@ -175,9 +175,7 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
   Future<void> fetchBarangKeluar() async {
     setState(() => _isLoading = true);
     try {
-      final query = client
-          .from('outgoings')
-          .select('''
+      final query = client.from('outgoings').select('''
             id,
             tanggal,
             no_faktur,
@@ -198,29 +196,30 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
 
       if (_dateRange != null) {
         query
-          .gte('tanggal', _dateRange!.start.toIso8601String())
-          .lte('tanggal', _dateRange!.end.toIso8601String());
+            .gte('tanggal', _dateRange!.start.toIso8601String())
+            .lte('tanggal', _dateRange!.end.toIso8601String());
       }
-                query.order('tanggal', ascending: false);
-
+      query.order('tanggal', ascending: false);
 
       final response = await query;
-      
+
       // Transform data
-       final List<Map<String, dynamic>> transformedData = (response as List).map((item) {
-      final details = (item['outgoing_details'] as List?)?.firstOrNull;
-      return {
-        'id': item['id'],
-        'tanggal': item['tanggal'],
-        'no_faktur': item['no_faktur'],
-        'tujuan': item['tujuan'],
-        'product': details?['product_batches']?['products'],
-        'batch_code': details?['product_batches']?['batch_code'],
-        'exp': details?['product_batches']?['exp'],
-        'qty_keluar': details?['qty_keluar'],
-        'satuan': details?['product_batches']?['products']?['satuan'],
-      };
-    }).toList();
+      final List<Map<String, dynamic>> transformedData = (response as List).map(
+        (item) {
+          final details = (item['outgoing_details'] as List?)?.firstOrNull;
+          return {
+            'id': item['id'],
+            'tanggal': item['tanggal'],
+            'no_faktur': item['no_faktur'],
+            'tujuan': item['tujuan'],
+            'product': details?['product_batches']?['products'],
+            'batch_code': details?['product_batches']?['batch_code'],
+            'exp': details?['product_batches']?['exp'],
+            'qty_keluar': details?['qty_keluar'],
+            'satuan': details?['product_batches']?['products']?['satuan'],
+          };
+        },
+      ).toList();
 
       setState(() {
         barangKeluar = List<Map<String, dynamic>>.from(transformedData);
@@ -235,9 +234,7 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
   Future<void> fetchStokProduk() async {
     setState(() => _isLoading = true);
     try {
-     final query = client
-      .from('product_batches')
-      .select('''
+      final query = client.from('product_batches').select('''
         *,
         products!inner(
           nama_produk,
@@ -252,40 +249,40 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
         )
       )''');
 
-  // Filter berdasarkan sub_kategori_id
- if (selectedSubKategoriId != null) {
-  query.eq('products.sub_kategori_id', selectedSubKategoriId!);
-}
+      // Filter berdasarkan sub_kategori_id
+      if (selectedSubKategoriId != null) {
+        query.eq('products.sub_kategori_id', selectedSubKategoriId!);
+      }
 
-  // Filter pencarian nama produk (case-insensitive)
-  if (_searchQuery.isNotEmpty) {
-    query.ilike('products.nama_produk', '%$_searchQuery%');
-  }
+      // Filter pencarian nama produk (case-insensitive)
+      if (_searchQuery.isNotEmpty) {
+        query.ilike('products.nama_produk', '%$_searchQuery%');
+      }
 
-  // Urutkan berdasarkan tanggal exp
-  query.order('exp', ascending: true);
+      // Urutkan berdasarkan tanggal exp
+      query.order('exp', ascending: true);
 
-     final response = await query;
-     print(response);
-  
-  
+      final response = await query;
+      print(response);
 
-    final List<Map<String, dynamic>> transformedData = (response as List).map((item) {
-      return {
-        'id': item['id'],
-        'product_id': item['product_id'],
-        'distributor_id': item['distributor_id'],
-        'batch_code': item['batch_code'],
-        'exp': item['exp'],
-        'qty_masuk': item['qty_masuk'],
-        'qty_keluar': item['qty_keluar'],
-        'qty_sisa': item['qty_sisa'],
-        'products': item['products'],
-        'sub_kategori': item['sub_kategori'],
-      };
-    }).toList();
+      final List<Map<String, dynamic>> transformedData = (response as List).map(
+        (item) {
+          return {
+            'id': item['id'],
+            'product_id': item['product_id'],
+            'distributor_id': item['distributor_id'],
+            'batch_code': item['batch_code'],
+            'exp': item['exp'],
+            'qty_masuk': item['qty_masuk'],
+            'qty_keluar': item['qty_keluar'],
+            'qty_sisa': item['qty_sisa'],
+            'products': item['products'],
+            'sub_kategori': item['sub_kategori'],
+          };
+        },
+      ).toList();
 
-    setState(() => stokProduk = transformedData);
+      setState(() => stokProduk = transformedData);
     } catch (e) {
       _showErrorSnackbar('Gagal memuat stok produk: $e');
     } finally {
@@ -293,96 +290,163 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
     }
   }
 
-Future<void> exportToExcel(
-  List<Map<String, dynamic>> data,
-  String title,
-) async {
-  if (data.isEmpty) {
-    _showErrorSnackbar('Tidak ada data untuk diekspor');
-    return;
-  }
-
-  setState(() => _isLoading = true);
-  try {
-    final xlsio.Workbook workbook = xlsio.Workbook();
-    final sheet = workbook.worksheets[0];
-    sheet.name = title;
-
-    // Custom headers based on report type
-    List<String> headers;
-    List<String> fieldNames;
-
-    switch (title) {
-      case 'Barang Masuk':
-        headers = ['Tanggal', 'No Faktur', 'Produk', 'Batch', 'Qty', 'Satuan', 'Distributor', 'Expired', 'Total Harga'];
-        fieldNames = ['tanggal', 'no_faktur', 'product.nama_produk', 'batch_code', 'qty_diterima', 'satuan', 'distributor.nama', 'exp', 'total_harga'];
-        break;
-      case 'Barang Keluar':
-        headers = ['Tanggal', 'No Faktur', 'Produk', 'Batch', 'Qty', 'Satuan', 'Tujuan', 'Expired'];
-        fieldNames = ['tanggal', 'no_faktur', 'product.nama_produk', 'batch_code', 'qty_keluar', 'satuan', 'tujuan', 'exp'];
-        break;
-      case 'Stok Produk':
-        headers = ['Kode Produk', 'Nama Produk', 'Batch', 'Qty Sisa', 'Qty Keluar', 'Satuan', 'Sub Kategori', 'Expired'];
-        fieldNames = ['kode_produk', 'nama_produk', 'batch_code', 'qty_sisa', 'qty_keluar', 'satuan', 'sub_kategori', 'exp'];
-        break;
-      default:
-        headers = data.first.keys.toList();
-        fieldNames = headers;
+  Future<void> exportToExcel(
+    List<Map<String, dynamic>> data,
+    String title,
+  ) async {
+    if (data.isEmpty) {
+      _showErrorSnackbar('Tidak ada data untuk diekspor');
+      return;
     }
 
-    // Add headers
-    for (var i = 0; i < headers.length; i++) {
-      sheet.getRangeByIndex(1, i + 1).setText(headers[i]);
-      sheet.getRangeByIndex(1, i + 1).cellStyle.bold = true;
-      sheet.getRangeByIndex(1, i + 1).cellStyle.backColor = '#03A6A1';
-      sheet.getRangeByIndex(1, i + 1).cellStyle.fontColor = '#FFFFFF';
-    }
+    setState(() => _isLoading = true);
+    try {
+      final xlsio.Workbook workbook = xlsio.Workbook();
+      final sheet = workbook.worksheets[0];
+      sheet.name = title;
 
-    // Add data with proper type handling
-    for (var i = 0; i < data.length; i++) {
-      final row = data[i];
-      for (var j = 0; j < fieldNames.length; j++) {
-        final field = fieldNames[j];
-        final value = _getNestedValue(row, field);
-        
-        // Handle different field types
-        if (field == 'tanggal' && value != null) {
-          sheet.getRangeByIndex(i + 2, j + 1).setText(DateFormat('dd/MM/yyyy').format(DateTime.parse(value.toString())));
-        } 
-        else if ((field.contains('harga') || field.contains('qty')) && value != null) {
-          // Safe number conversion
-          final numValue = value is num ? value 
-                       : value is String ? num.tryParse(value) ?? 0 
-                       : 0;
-          sheet.getRangeByIndex(i + 2, j + 1).setNumber(numValue.toDouble());
-          
-          // Format as currency for harga fields
-          if (field.contains('harga')) {
-            sheet.getRangeByIndex(i + 2, j + 1).numberFormat = r'"Rp"#,##0.00';
+      // Custom headers based on report type
+      List<String> headers;
+      List<String> fieldNames;
+
+      switch (title) {
+        case 'Barang Masuk':
+          headers = [
+            'Tanggal',
+            'No Faktur',
+            'Produk',
+            'Batch',
+            'Qty',
+            'Satuan',
+            'Distributor',
+            'Expired',
+            'Total Harga',
+          ];
+          fieldNames = [
+            'tanggal',
+            'no_faktur',
+            'product.nama_produk',
+            'batch_code',
+            'qty_diterima',
+            'satuan',
+            'distributor.nama',
+            'exp',
+            'total_harga',
+          ];
+          break;
+        case 'Barang Keluar':
+          headers = [
+            'Tanggal',
+            'No Faktur',
+            'Produk',
+            'Batch',
+            'Qty',
+            'Satuan',
+            'Tujuan',
+            'Expired',
+          ];
+          fieldNames = [
+            'tanggal',
+            'no_faktur',
+            'product.nama_produk',
+            'batch_code',
+            'qty_keluar',
+            'satuan',
+            'tujuan',
+            'exp',
+          ];
+          break;
+        case 'Stok Produk':
+          headers = [
+            'Kode Produk',
+            'Nama Produk',
+            'Batch',
+            'Qty Sisa',
+            'Qty Keluar',
+            'Satuan',
+            'Sub Kategori',
+            'Expired',
+          ];
+          fieldNames = [
+            'kode_produk',
+            'nama_produk',
+            'batch_code',
+            'qty_sisa',
+            'qty_keluar',
+            'satuan',
+            'sub_kategori',
+            'exp',
+          ];
+          break;
+        default:
+          headers = data.first.keys.toList();
+          fieldNames = headers;
+      }
+
+      // Add headers
+      for (var i = 0; i < headers.length; i++) {
+        sheet.getRangeByIndex(1, i + 1).setText(headers[i]);
+        sheet.getRangeByIndex(1, i + 1).cellStyle.bold = true;
+        sheet.getRangeByIndex(1, i + 1).cellStyle.backColor = '#03A6A1';
+        sheet.getRangeByIndex(1, i + 1).cellStyle.fontColor = '#FFFFFF';
+      }
+
+      // Add data with proper type handling
+      for (var i = 0; i < data.length; i++) {
+        final row = data[i];
+        for (var j = 0; j < fieldNames.length; j++) {
+          final field = fieldNames[j];
+          final value = _getNestedValue(row, field);
+
+          // Handle different field types
+          if (field == 'tanggal' && value != null) {
+            sheet
+                .getRangeByIndex(i + 2, j + 1)
+                .setText(
+                  DateFormat(
+                    'dd/MM/yyyy',
+                  ).format(DateTime.parse(value.toString())),
+                );
+          } else if ((field.contains('harga') || field.contains('qty')) &&
+              value != null) {
+            // Safe number conversion
+            final numValue = value is num
+                ? value
+                : value is String
+                ? num.tryParse(value) ?? 0
+                : 0;
+            sheet.getRangeByIndex(i + 2, j + 1).setNumber(numValue.toDouble());
+
+            // Format as currency for harga fields
+            if (field.contains('harga')) {
+              sheet.getRangeByIndex(i + 2, j + 1).numberFormat =
+                  r'"Rp"#,##0.00';
+            }
+          } else {
+            sheet
+                .getRangeByIndex(i + 2, j + 1)
+                .setText(value?.toString() ?? '');
           }
-        } 
-        else {
-          sheet.getRangeByIndex(i + 2, j + 1).setText(value?.toString() ?? '');
         }
       }
-    }
 
-    // Auto fit columns
-    for (var i = 1; i <= headers.length; i++) {
-      sheet.autoFitColumn(i);
-    }
+      // Auto fit columns
+      for (var i = 1; i <= headers.length; i++) {
+        sheet.autoFitColumn(i);
+      }
 
-    final bytes = workbook.saveAsStream();
-    workbook.dispose();
-    await _saveFile(bytes, '$title.xlsx');
-    _showSuccessSnackbar('Excel berhasil diekspor');
-  } catch (e) {
-    _showErrorSnackbar('Gagal mengekspor ke Excel: $e');
-    debugPrint('Error details: $e');
-  } finally {
-    setState(() => _isLoading = false);
+      final bytes = workbook.saveAsStream();
+      workbook.dispose();
+      await _saveFile(bytes, '$title.xlsx');
+      _showSuccessSnackbar('Excel berhasil diekspor');
+    } catch (e) {
+      _showErrorSnackbar('Gagal mengekspor ke Excel: $e');
+      debugPrint('Error details: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
-}
+
   dynamic _getNestedValue(Map<String, dynamic> map, String key) {
     final keys = key.split('.');
     dynamic value = map;
@@ -396,216 +460,350 @@ Future<void> exportToExcel(
     return value;
   }
 
- Future<void> exportToPdf(
-  BuildContext context,
-  List<Map<String, dynamic>> data,
-  String title,
-  DateTimeRange? dateRange,
-) async {
-  if (data.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Tidak ada data untuk diekspor')),
-    );
-    return;
-  }
-
-  try {
-    if (!await requestStoragePermission()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Izin penyimpanan ditolak')),
-      );
+  Future<void> exportToPdf(
+    BuildContext context,
+    List<Map<String, dynamic>> data,
+    String title,
+    DateTimeRange? dateRange,
+  ) async {
+    if (data.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Tidak ada data untuk diekspor')));
       return;
     }
 
-    final pdf = pw.Document();
-    final font = pw.Font.helvetica();
-    final boldFont = pw.Font.helveticaBold();
+    try {
+      final pdf = pw.Document();
+      final font = pw.Font.helvetica();
+      final boldFont = pw.Font.helveticaBold();
 
-    List<String> headers;
-    List<String> fieldNames;
-
-    switch (title) {
-      case 'Barang Masuk':
-        headers = ['Tanggal', 'No Faktur', 'Produk', 'Batch', 'Qty', 'Satuan', 'Distributor', 'Expired', 'Total Harga'];
-        fieldNames = ['tanggal', 'no_faktur', 'product.nama_produk', 'batch_code', 'qty_diterima', 'satuan', 'distributor.nama', 'exp', 'total_harga'];
-        break;
-      case 'Barang Keluar':
-        headers = ['Tanggal', 'No Faktur', 'Produk', 'Batch', 'Qty', 'Satuan', 'Tujuan', 'Expired'];
-        fieldNames = ['tanggal', 'no_faktur', 'product.nama_produk', 'batch_code', 'qty_keluar', 'satuan', 'tujuan', 'exp'];
-        break;
-      case 'Stok Produk':
-        headers = ['Kode Produk', 'Nama Produk', 'Batch', 'Qty Sisa', 'Qty Keluar', 'Satuan', 'Sub Kategori', 'Expired'];
-        fieldNames = ['products.kode_produk', 'products.nama_produk', 'batch_code', 'qty_sisa', 'qty_keluar', 'products.satuan', 'sub_kategori.nama', 'exp'];
-        break;
-      default:
-        headers = data.first.keys.toList();
-        fieldNames = headers;
-    }
-
-   final pdfData = data.map((row) {
-  return fieldNames.map((field) {
-    final value = _getNestedValue(row, field);
-    if (field == 'tanggal' && value != null && value is String) {
-      try {
-        return DateFormat('dd/MM/yyyy').format(DateTime.parse(value));
-      } catch (e) {
-        return value; // fallback jika format tanggal tidak valid
+      // Formatter
+      String formatValue(dynamic value, String field) {
+        if (value == null) return '-';
+        if (field == 'tanggal' && value is String) {
+          try {
+            return DateFormat('dd/MM/yyyy').format(DateTime.parse(value));
+          } catch (_) {
+            return value.toString();
+          }
+        } else if (field.contains('harga')) {
+          final numValue = value is num
+              ? value
+              : num.tryParse(value.toString()) ?? 0;
+          return NumberFormat.currency(
+            locale: 'id_ID',
+            symbol: 'Rp ',
+            decimalDigits: 0,
+          ).format(numValue);
+        } else if (field == 'exp' && value is String) {
+          try {
+            return DateFormat('dd/MM/yyyy').format(DateTime.parse(value));
+          } catch (_) {
+            return value.toString();
+          }
+        }
+        return value.toString();
       }
-    } else if (field.contains('harga') && value != null) {
-  final numValue = value is num
-      ? value
-      : value is String
-          ? num.tryParse(value) ?? 0
-          : 0;
-  return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ').format(numValue);
-}
-    return value?.toString() ?? '-';
-  }).toList();
-}).toList();
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4.landscape,
-        margin: pw.EdgeInsets.all(20),
-        build: (context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      List<List<String>> pdfData = [];
+      List<String> headers = [];
+      num totalHarga = 0;
+      num totalQtyKeluar = 0;
+
+      // ============================
+      // Barang Masuk
+      // ============================
+      if (title == 'Barang Masuk') {
+        headers = [
+          'Tanggal',
+          'No Faktur',
+          'Produk',
+          'Batch',
+          'Qty',
+          'Satuan',
+          'Distributor',
+          'Expired',
+          'Total Harga',
+        ];
+
+        pdfData = data.map((item) {
+          // Debug print untuk mengecek data per item
+          print('Item data: $item');
+
+          // Handle tanggal dengan format ISO yang valid
+          String formattedDate = '-';
+          try {
+            if (item['tanggal'] != null) {
+              formattedDate = DateFormat(
+                'dd/MM/yyyy',
+              ).format(DateTime.parse(item['tanggal'].toString()).toLocal());
+            }
+          } catch (e) {
+            print('Error formatting date: ${item['tanggal']}');
+          }
+
+          // Handle product name
+          String productName = '-';
+          if (item['product'] != null && item['product'] is Map) {
+            productName = item['product']['nama_produk']?.toString() ?? '-';
+          }
+
+          // Handle distributor name
+          String distributorName = '-';
+          if (item['distributor'] != null && item['distributor'] is Map) {
+            distributorName = item['distributor']['nama']?.toString() ?? '-';
+          }
+
+          // Handle total harga
+          String totalHarga = 'Rp 0';
+          try {
+            if (item['total_harga'] != null) {
+              totalHarga = NumberFormat.currency(
+                locale: 'id_ID',
+                symbol: 'Rp ',
+              ).format(double.parse(item['total_harga'].toString()));
+            }
+          } catch (e) {
+            debugPrint('Error formatting harga: ${item['total_harga']}');
+          }
+
+          return [
+            formattedDate,
+            item['no_faktur']?.toString() ?? '-',
+            productName,
+            item['batch_code']?.toString() ?? '-',
+            item['qty_diterima']?.toString() ?? '0',
+            item['satuan']?.toString() ?? '-',
+            distributorName,
+            formatValue(item['exp'], 'exp'),
+            totalHarga,
+          ];
+        }).toList();
+
+        debugPrint('PDF Data: $pdfData'); // Debug hasil transformasi
+      } else if (title == 'Barang Keluar') {
+        headers = [
+          'Tanggal',
+          'No Faktur',
+          'Produk',
+          'Batch',
+          'Qty',
+          'Satuan',
+          'Tujuan',
+          'Expired',
+        ];
+
+        pdfData = data.map((item) {
+          final qty = item['qty_keluar'] ?? 0;
+          totalQtyKeluar += (qty is num)
+              ? qty
+              : num.tryParse(qty.toString()) ?? 0;
+
+          return [
+            formatValue(item['tanggal'], 'tanggal'),
+            item['no_faktur']?.toString() ?? '-',
+            item['product']?['nama_produk']?.toString() ?? '-',
+            item['batch_code']?.toString() ?? '-',
+            qty.toString(),
+            item['satuan']?.toString() ?? '-',
+            item['tujuan']?.toString() ?? '-',
+            formatValue(item['exp'], 'exp'),
+          ];
+        }).toList();
+
+        // ============================
+        // Stok Produk
+        // ============================
+      } else if (title == 'Stok Produk') {
+        headers = [
+          'Kode Produk',
+          'Nama Produk',
+          'Batch',
+          'Qty Sisa',
+          'Qty Keluar',
+          'Satuan',
+          'Sub Kategori',
+          'Expired',
+        ];
+
+        pdfData = data.map((item) {
+          return [
+            item['products']?['kode_produk']?.toString() ?? '-',
+            item['products']?['nama_produk']?.toString() ?? '-',
+            item['batch_code']?.toString() ?? '-',
+            item['qty_sisa']?.toString() ?? '0',
+            item['qty_keluar']?.toString() ?? '0',
+            item['products']?['satuan']?.toString() ?? '-',
+            item['sub_kategori']?['nama']?.toString() ?? '-',
+            formatValue(item['exp'], 'exp'),
+          ];
+        }).toList();
+      }
+
+      // ============================
+      // Bangun PDF
+      // ============================
+      pdf.addPage(
+        pw.Page(
+          // pageFormat: PdfPageFormat.a4.landscape,
+          margin: pw.EdgeInsets.all(20),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text(
-                  'Laporan $title',
-                  style: pw.TextStyle(font: boldFont, fontSize: 18),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Laporan $title',
+                      style: pw.TextStyle(font: boldFont, fontSize: 18),
+                    ),
+                    pw.Text(
+                      'Tanggal: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}',
+                      style: pw.TextStyle(font: font),
+                    ),
+                  ],
                 ),
-                pw.Text(
-                  'Tanggal: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}',
-                  style: pw.TextStyle(font: font),
+                pw.SizedBox(height: 10),
+                if (dateRange != null)
+                  pw.Text(
+                    'Periode: ${DateFormat('dd/MM/yyyy').format(dateRange.start)} - ${DateFormat('dd/MM/yyyy').format(dateRange.end)}',
+                    style: pw.TextStyle(font: font),
+                  ),
+                pw.SizedBox(height: 20),
+                pw.Table.fromTextArray(
+                  headers: headers,
+                  data: pdfData,
+                  headerStyle: pw.TextStyle(
+                    font: boldFont,
+                    color: PdfColors.white,
+                  ),
+                  headerDecoration: pw.BoxDecoration(color: PdfColors.teal),
+                  cellStyle: pw.TextStyle(font: font),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  border: pw.TableBorder.all(color: PdfColors.grey300),
+                  cellPadding: pw.EdgeInsets.all(5),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Tambahan Total
+                if (title == 'Barang Masuk')
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text(
+                      'Total Harga Keseluruhan: ${formatValue(totalHarga, 'harga')}',
+                      style: pw.TextStyle(font: boldFont, fontSize: 12),
+                    ),
+                  ),
+                if (title == 'Barang Keluar')
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text(
+                      'Total Barang Keluar: $totalQtyKeluar',
+                      style: pw.TextStyle(font: boldFont, fontSize: 12),
+                    ),
+                  ),
+
+                pw.SizedBox(height: 30),
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('Hormat kami,', style: pw.TextStyle(font: font)),
+                      pw.SizedBox(height: 40),
+                      pw.Text('(Staff)', style: pw.TextStyle(font: boldFont)),
+                    ],
+                  ),
                 ),
               ],
-            ),
-            pw.SizedBox(height: 10),
-            if (dateRange != null)
-              pw.Text(
-                'Periode: ${DateFormat('dd/MM/yyyy').format(dateRange.start)} - ${DateFormat('dd/MM/yyyy').format(dateRange.end)}',
-                style: pw.TextStyle(font: font),
-              ),
-            pw.SizedBox(height: 20),
-            pw.Table.fromTextArray(
-              headers: headers,
-              data: pdfData,
-              headerStyle: pw.TextStyle(font: boldFont, color: PdfColors.white),
-              headerDecoration: pw.BoxDecoration(color: PdfColors.teal),
-              cellStyle: pw.TextStyle(font: font),
-              cellAlignment: pw.Alignment.centerLeft,
-              border: pw.TableBorder.all(color: PdfColors.grey300),
-              cellPadding: pw.EdgeInsets.all(5),
-              columnWidths: {
-                for (var i = 0; i < headers.length; i++) i: pw.FlexColumnWidth(1)
-              },
-            ),
-            pw.SizedBox(height: 30),
-            pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                children: [
-                  pw.Text('Hormat kami,', style: pw.TextStyle(font: font)),
-                  pw.SizedBox(height: 40),
-                  pw.Text('(Admin)', style: pw.TextStyle(font: boldFont)),
-                ],
-              ),
-            ),
-          ],
+            );
+          },
         ),
-      ),
-    );
+      );
 
-    final bytes = await pdf.save();
-    await _saveFile(bytes, '$title.pdf');
+      final bytes = await pdf.save();
+      await _saveFile(bytes, '$title.pdf');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('PDF berhasil diekspor ke folder Download')),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Gagal ekspor PDF: $e')),
-    );
-  }
-}
-
-Future<bool> requestStoragePermission() async {
-  if (!Platform.isAndroid) return true;
-
-  final androidInfo = await DeviceInfoPlugin().androidInfo;
-  final sdkInt = androidInfo.version.sdkInt;
-
-  if (sdkInt >= 33) {
-    // Android 13+
-    final permissionStatus = await Permission.manageExternalStorage.request();
-    return permissionStatus.isGranted;
-  } else {
-    // Android < 13
-    final permissionStatus = await Permission.storage.request();
-    return permissionStatus.isGranted;
-  }
-}
-
-
-Future<void> _saveFile(List<int> bytes, String fileName) async {
-  try {
-    if (!await requestStoragePermission()) {
-      _showErrorSnackbar('Izin penyimpanan diperlukan untuk menyimpan file.');
-      if (await Permission.storage.isPermanentlyDenied || await Permission.manageExternalStorage.isPermanentlyDenied) {
-        await openAppSettings();
-      }
-      return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF $title berhasil diekspor')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal ekspor PDF: $e')));
+      debugPrint('Error exporting PDF: $e');
     }
+  }
 
-    // Simpan ke folder /storage/emulated/0/Download (folder root)
-    final downloadDir = Directory('/storage/emulated/0/Download');
+  Future<bool> requestStoragePermission() async {
+    if (!Platform.isAndroid) return true;
 
-    if (!await downloadDir.exists()) {
-      await downloadDir.create(recursive: true);
-    }
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
+    final sdkInt = androidInfo.version.sdkInt;
 
-    final filePath = '${downloadDir.path}/$fileName';
-    final file = File(filePath);
-    await file.writeAsBytes(bytes, flush: true);
-
-    if (await file.exists()) {
-      _showSuccessSnackbar('File berhasil disimpan: $filePath');
-      // Uncomment jika ingin membuka file langsung
-      // await OpenFile.open(filePath);
+    if (sdkInt >= 33) {
+      // Android 13+
+      final permissionStatus = await Permission.manageExternalStorage.request();
+      return permissionStatus.isGranted;
     } else {
-      _showErrorSnackbar('Gagal menyimpan file.');
+      // Android < 13
+      final permissionStatus = await Permission.storage.request();
+      return permissionStatus.isGranted;
     }
-  } catch (e) {
-    _showErrorSnackbar('Terjadi kesalahan saat menyimpan file: $e');
-    debugPrint('Error saving file: $e');
   }
-}
+
+  Future<void> _saveFile(List<int> bytes, String fileName) async {
+    try {
+      if (!await requestStoragePermission()) {
+        _showErrorSnackbar('Izin penyimpanan diperlukan untuk menyimpan file.');
+        if (await Permission.storage.isPermanentlyDenied ||
+            await Permission.manageExternalStorage.isPermanentlyDenied) {
+          await openAppSettings();
+        }
+        return;
+      }
+
+      // Simpan ke folder /storage/emulated/0/Download (folder root)
+      final downloadDir = Directory('/storage/emulated/0/Download');
+
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+
+      final filePath = '${downloadDir.path}/$fileName';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes, flush: true);
+
+      if (await file.exists()) {
+        _showSuccessSnackbar('File berhasil disimpan: $filePath');
+        // Uncomment jika ingin membuka file langsung
+        // await OpenFile.open(filePath);
+      } else {
+        _showErrorSnackbar('Gagal menyimpan file.');
+      }
+    } catch (e) {
+      _showErrorSnackbar('Terjadi kesalahan saat menyimpan file: $e');
+      debugPrint('Error saving file: $e');
+    }
+  }
 
   void _showErrorSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
   void _showSuccessSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
 
   Widget _buildDateRangeChip() {
     if (_dateRange == null) return SizedBox.shrink();
-    
+
     return Chip(
       backgroundColor: primaryColor.withOpacity(0.1),
       label: Text(
@@ -622,24 +820,24 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
 
   Widget _buildSubKategoriChip() {
     if (selectedSubKategoriId == null) return SizedBox.shrink();
-    
+
     final subKategori = subKategoris.firstWhere(
       (e) => e['id'] == selectedSubKategoriId,
       orElse: () => {'nama': 'Unknown'},
     );
-    
+
     return Chip(
-  backgroundColor: primaryColor.withOpacity(0.1),
-  label: Text(
-    '${subKategori['kategori']?['nama'] ?? 'Tanpa Kategori'} - ${subKategori['nama']}',
-    style: TextStyle(color: primaryColor),
-  ),
-  deleteIcon: Icon(Icons.close, size: 16),
-  onDeleted: () {
-    setState(() => selectedSubKategoriId = null);
-    fetchStokProduk();
-  },
-);
+      backgroundColor: primaryColor.withOpacity(0.1),
+      label: Text(
+        '${subKategori['kategori']?['nama'] ?? 'Tanpa Kategori'} - ${subKategori['nama']}',
+        style: TextStyle(color: primaryColor),
+      ),
+      deleteIcon: Icon(Icons.close, size: 16),
+      onDeleted: () {
+        setState(() => selectedSubKategoriId = null);
+        fetchStokProduk();
+      },
+    );
   }
 
   Widget _buildSearchField() {
@@ -668,9 +866,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: primaryColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
       child: Row(
@@ -686,7 +882,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
 
   Widget _buildExportButtons(List<Map<String, dynamic>> data, String title) {
     if (data.isEmpty) return SizedBox.shrink();
-    
+
     return Row(
       children: [
         ElevatedButton(
@@ -709,7 +905,16 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
         ),
         SizedBox(width: 10),
         ElevatedButton(
-          onPressed: () => exportToPdf(context,data, title,null),
+          onPressed: () {
+            // Panggil exportToPdf dengan parameter yang sesuai
+            if (title == "Barang Masuk") {
+              exportToPdf(context, barangMasuk, "Barang Masuk", _dateRange);
+            } else if (title == "Barang Keluar") {
+              exportToPdf(context, barangKeluar, "Barang Keluar", _dateRange);
+            } else if (title == "Stok Produk") {
+              exportToPdf(context, stokProduk, "Stok Produk", null);
+            }
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             shape: RoundedRectangleBorder(
@@ -734,13 +939,10 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
     if (_isLoading) {
       return Center(child: CircularProgressIndicator());
     }
-    
+
     if (data.isEmpty) {
       return Center(
-        child: Text(
-          'Tidak ada data',
-          style: TextStyle(color: Colors.grey),
-        ),
+        child: Text('Tidak ada data', style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -756,11 +958,17 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
           DataColumn(label: Text('Qty', textAlign: TextAlign.center)),
           DataColumn(label: Text('Distributor')),
         ];
-        
+
         rows = data.map((item) {
           return DataRow(
             cells: [
-              DataCell(Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(item['tanggal'])))),
+              DataCell(
+                Text(
+                  DateFormat(
+                    'dd/MM/yyyy',
+                  ).format(DateTime.parse(item['tanggal'])),
+                ),
+              ),
               DataCell(Text(item['no_faktur'] ?? '-')),
               DataCell(Text(item['product']?['nama_produk'] ?? '-')),
               DataCell(Text('${item['qty_diterima']} ${item['satuan'] ?? ''}')),
@@ -769,7 +977,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
           );
         }).toList();
         break;
-        
+
       case 'keluar':
         columns = [
           DataColumn(label: Text('Tanggal')),
@@ -778,11 +986,17 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
           DataColumn(label: Text('Qty', textAlign: TextAlign.center)),
           DataColumn(label: Text('Tujuan')),
         ];
-        
+
         rows = data.map((item) {
           return DataRow(
             cells: [
-              DataCell(Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(item['tanggal'])))),
+              DataCell(
+                Text(
+                  DateFormat(
+                    'dd/MM/yyyy',
+                  ).format(DateTime.parse(item['tanggal'])),
+                ),
+              ),
               DataCell(Text(item['no_faktur'] ?? '-')),
               DataCell(Text(item['product']?['nama_produk'] ?? '-')),
               DataCell(Text('${item['qty_keluar']} ${item['satuan'] ?? ''}')),
@@ -791,7 +1005,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
           );
         }).toList();
         break;
-        
+
       case 'stok':
         columns = [
           DataColumn(label: Text('Produk')),
@@ -800,22 +1014,36 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
           DataColumn(label: Text('Keluar', textAlign: TextAlign.center)),
           DataColumn(label: Text('Expired')),
         ];
-        
+
         rows = stokProduk.map((item) {
           return DataRow(
             cells: [
               DataCell(Text(item['products']?['nama_produk'] ?? '-')),
               DataCell(Text(item['batch_code'] ?? '-')),
-              DataCell(Text('${item['qty_sisa']} ${item['products']?['satuan'] ?? ''}')),
-              DataCell(Text('${item['qty_keluar']} ${item['products']?['satuan'] ?? ''}')),
-              DataCell(Text(item['exp'] != null 
-                ? DateFormat('dd/MM/yyyy').format(DateTime.parse(item['exp']))
-                : '-')),
+              DataCell(
+                Text(
+                  '${item['qty_sisa']} ${item['products']?['satuan'] ?? ''}',
+                ),
+              ),
+              DataCell(
+                Text(
+                  '${item['qty_keluar']} ${item['products']?['satuan'] ?? ''}',
+                ),
+              ),
+              DataCell(
+                Text(
+                  item['exp'] != null
+                      ? DateFormat(
+                          'dd/MM/yyyy',
+                        ).format(DateTime.parse(item['exp']))
+                      : '-',
+                ),
+              ),
             ],
           );
         }).toList();
         break;
-        
+
       default:
         columns = [];
         rows = [];
@@ -845,17 +1073,17 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
         border: OutlineInputBorder(),
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       ),
-     items: [
-    DropdownMenuItem(value: null, child: Text('Semua Kategori')),
-    ...subKategoris.map((e) {
-      final kategoriNama = e['kategori']?['nama'] ?? 'Tanpa Kategori';
-      final subKategoriNama = e['nama'] ?? '';
-      return DropdownMenuItem(
-        value: e['id'],
-        child: Text('$kategoriNama - $subKategoriNama'),
-      );
-    }),
-  ],
+      items: [
+        DropdownMenuItem(value: null, child: Text('Semua Kategori')),
+        ...subKategoris.map((e) {
+          final kategoriNama = e['kategori']?['nama'] ?? 'Tanpa Kategori';
+          final subKategoriNama = e['nama'] ?? '';
+          return DropdownMenuItem(
+            value: e['id'],
+            child: Text('$kategoriNama - $subKategoriNama'),
+          );
+        }),
+      ],
       onChanged: (value) {
         setState(() => selectedSubKategoriId = value);
         fetchStokProduk();
@@ -865,13 +1093,13 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
 
   void _refreshData() {
     switch (_tabController.index) {
-      case 0: 
+      case 0:
         fetchBarangMasuk();
         break;
-      case 1: 
+      case 1:
         fetchBarangKeluar();
         break;
-      case 2: 
+      case 2:
         fetchStokProduk();
         break;
     }
@@ -915,12 +1143,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
                   ],
                 ),
                 SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _buildDateRangeChip(),
-                  ],
-                ),
+                Wrap(spacing: 8, children: [_buildDateRangeChip()]),
                 SizedBox(height: 16),
                 _buildExportButtons(barangMasuk, "Barang Masuk"),
                 SizedBox(height: 16),
@@ -939,7 +1162,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
               ],
             ),
           ),
-          
+
           // Barang Keluar
           Padding(
             padding: EdgeInsets.all(16),
@@ -954,12 +1177,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
                   ],
                 ),
                 SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _buildDateRangeChip(),
-                  ],
-                ),
+                Wrap(spacing: 8, children: [_buildDateRangeChip()]),
                 SizedBox(height: 16),
                 _buildExportButtons(barangKeluar, "Barang Keluar"),
                 SizedBox(height: 16),
@@ -978,7 +1196,7 @@ Future<void> _saveFile(List<int> bytes, String fileName) async {
               ],
             ),
           ),
-          
+
           // Stok Produk
           Padding(
             padding: EdgeInsets.all(16),

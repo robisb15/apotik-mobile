@@ -1,8 +1,7 @@
-// File: scan_barang_keluar_page.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:barcode_scan2/barcode_scan2.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ScanBarangKeluarPage extends StatefulWidget {
   @override
@@ -13,91 +12,83 @@ class _ScanBarangKeluarPageState extends State<ScanBarangKeluarPage> {
   final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-  Map<String, dynamic>? _selectedBatch;
-
-  final _qtyController = TextEditingController();
   final _fakturController = TextEditingController();
   final _tanggalController = TextEditingController();
-  final _tujuanController = TextEditingController(text:'');
-  final _totalHargaController = TextEditingController();
+  final _tujuanController = TextEditingController();
   final _catatanController = TextEditingController();
 
-  bool _scannerVisible = true;
-  bool _isLoading = false;
+  List<Map<String, dynamic>> _scannedItems = [];
+  int _totalKeseluruhan = 0;
 
-  Future<void> _onBarcodeDetected(String barcode) async {
-    setState(() => _isLoading = true);
-    try {
-      // Cari product berdasarkan barcode
-      final product = await supabase
-          .from('products')
-          .select('id, nama_produk, produsen, barcode')
-          .eq('barcode', barcode)
-          .maybeSingle();
+  String? _selectedTujuan;
 
-      if (product == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Produk tidak ditemukan untuk barcode: $barcode'),
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-          _scannerVisible = true;
-        });
-        return;
-      }
+  @override
+  void initState() {
+    super.initState();
+    _selectedTujuan = _tujuanController.text.isNotEmpty
+        ? _tujuanController.text
+        : null;
+  }
 
-      // Cari batch berdasarkan product_id
+  Future<void> _scanBarcode() async {
+    final result = await BarcodeScanner.scan();
+    final barcode = result.rawContent;
+
+    if (barcode.isEmpty) return;
+
+    final product = await supabase
+        .from('products')
+        .select('id')
+        .eq('barcode', barcode)
+        .limit(1)
+        .maybeSingle();
+
+    if (product != null) {
       final batch = await supabase
           .from('product_batches')
-          .select(
-            'id, batch_code, exp, product_id, qty_sisa, qty_masuk, qty_keluar',
-          )
+          .select('''
+            id, batch_code, exp, qty_sisa, qty_masuk, product_id,
+            products(id, nama_produk, barcode, harga_jual)
+          ''')
           .eq('product_id', product['id'])
-          .order('exp', ascending: true) // ambil yang terdekat expired
           .limit(1)
           .maybeSingle();
 
-      if (batch == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Batch tidak ditemukan untuk produk: ${product['nama_produk']}',
-            ),
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-          _scannerVisible = true;
-        });
+      if (batch == null || batch['products'] == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Produk tidak ditemukan')));
         return;
       }
 
-      // Gabungkan data produk ke dalam batch
-      batch['products'] = product;
-
       setState(() {
-        _selectedBatch = batch;
-        _scannerVisible = false;
-        _isLoading = false;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
-      setState(() {
-        _isLoading = false;
-        _scannerVisible = true;
+        _scannedItems.add({
+          'batch': batch,
+          'qtyController': TextEditingController(),
+          'subtotal': 0,
+        });
       });
     }
   }
 
-  Future<void> _saveData() async {
-    if (!_formKey.currentState!.validate() || _selectedBatch == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pastikan semua data terisi dengan benar')),
-      );
+  void _updateTotal() {
+    int total = 0;
+    for (final item in _scannedItems) {
+      final qty = int.tryParse(item['qtyController'].text) ?? 0;
+      final harga = (item['batch']['products']['harga_jual'] ?? 0) as num;
+      item['subtotal'] = (qty * harga).toInt();
+      total += (item['subtotal'] as num).toInt();
+    }
+    setState(() {
+      _totalKeseluruhan = total;
+    });
+  }
+
+  Future<void> _saveAll() async {
+    if (!_formKey.currentState!.validate() || _scannedItems.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lengkapi data terlebih dahulu')));
       return;
     }
 
@@ -105,44 +96,42 @@ class _ScanBarangKeluarPageState extends State<ScanBarangKeluarPage> {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('User belum login');
 
-      final tanggal = DateFormat('yyyy-MM-dd').parse(_tanggalController.text);
+      _updateTotal();
+
       final outgoing = await supabase
           .from('outgoings')
           .insert({
             'no_faktur': _fakturController.text,
-            'tanggal': tanggal.toIso8601String(),
-            'tujuan': _tujuanController.text,
-            'user_id': user.id,
-            'total_harga': int.parse(
-              _totalHargaController.text.replaceAll('.', ''),
-            ),
+            'tanggal': _tanggalController.text,
+            'tujuan': _selectedTujuan,
             'catatan': _catatanController.text,
+            'total_harga': _totalKeseluruhan,
+            'user_id': user.id,
           })
           .select()
           .single();
 
-      await supabase.from('outgoing_details').insert({
-        'outgoing_id': outgoing['id'],
-        'product_batch_id': _selectedBatch!['id'],
-        'qty_keluar': int.parse(_qtyController.text),
-      });
+      for (final item in _scannedItems) {
+        final batch = item['batch'];
+        final qty = int.parse(item['qtyController'].text);
+        final subtotal = item['subtotal'];
 
-      final batchId = _selectedBatch!['id'];
-      final batchData = await supabase
-          .from('product_batches')
-          .select('qty_masuk, qty_keluar')
-          .eq('id', batchId)
-          .single();
+        await supabase.from('outgoing_details').insert({
+          'outgoing_id': outgoing['id'],
+          'product_batch_id': batch['id'],
+          'qty_keluar': qty,
+          'subtotal': subtotal,
+        });
 
-      final qtyMasuk = batchData['qty_masuk'] ?? 0;
-      final qtyKeluarLama = batchData['qty_keluar'] ?? 0;
-      final qtyKeluarBaru = qtyKeluarLama + int.parse(_qtyController.text);
-      final qtySisaBaru = qtyMasuk - qtyKeluarBaru;
-
-      await supabase
-          .from('product_batches')
-          .update({'qty_keluar': qtyKeluarBaru, 'qty_sisa': qtySisaBaru})
-          .eq('id', batchId);
+        final qtyBaru = batch['qty_sisa'] - qty;
+        await supabase
+            .from('product_batches')
+            .update({
+              'qty_keluar': batch['qty_masuk'] - qtyBaru,
+              'qty_sisa': qtyBaru,
+            })
+            .eq('id', batch['id']);
+      }
 
       ScaffoldMessenger.of(
         context,
@@ -160,171 +149,163 @@ class _ScanBarangKeluarPageState extends State<ScanBarangKeluarPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Scan Barang Keluar'),
-        backgroundColor: Color(0xFF03A6A1),
+        backgroundColor: Colors.teal,
       ),
-      body: Column(
-        children: [
-          if (_scannerVisible)
-            Expanded(
-              flex: 1,
-              child: Stack(
-                children: [
-                  MobileScanner(
-                    onDetect: (capture) {
-                      final barcode = capture.barcodes.firstOrNull?.rawValue;
-                      if (barcode != null) _onBarcodeDetected(barcode);
-                    },
-                  ),
-                  Center(
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.green, width: 3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: _scanBarcode,
+        child: Icon(Icons.qr_code_scanner),
+        backgroundColor: Colors.teal,
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              _buildTextField(_fakturController, 'No Faktur', true),
+              SizedBox(height: 16),
+              TextFormField(
+                controller: _tanggalController,
+                readOnly: true,
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2023),
+                    lastDate: DateTime(2035),
+                  );
+                  if (date != null) {
+                    _tanggalController.text = DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(date);
+                  }
+                },
+                decoration: InputDecoration(
+                  labelText: 'Tanggal',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Wajib isi tanggal' : null,
               ),
-            )
-          else
-            ElevatedButton.icon(
-              onPressed: () => setState(() => _scannerVisible = true),
-              icon: Icon(Icons.refresh),
-              label: Text('Scan Ulang'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            ),
-          if (!_scannerVisible && _selectedBatch != null)
-            Expanded(
-              flex: 2,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      Text(
-                        '${_selectedBatch!['products']['nama_produk']} - ${_selectedBatch!['products']['produsen']}',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Barcode: ${_selectedBatch!['products']['barcode']}',
-                      ),
-                      Text('Batch: ${_selectedBatch!['batch_code']}'),
-                      Text('Stok Tersisa: ${_selectedBatch!['qty_sisa']}'),
-                      Text(
-                        'Expired: ${DateFormat('dd-MM-yyyy').format(DateTime.parse(_selectedBatch!['exp']))}',
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _qtyController,
-                        decoration: InputDecoration(
-                          labelText: 'Qty Keluar',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-  value: _tujuanController.text.isNotEmpty ? _tujuanController.text : null,
-  items: const [
-    DropdownMenuItem(value: 'Resep', child: Text('Resep')),
-    DropdownMenuItem(value: 'Swamedikasi', child: Text('Swamedikasi')),
-  ],
-  onChanged: (value) {
-    setState(() => _tujuanController.text = value ?? '');
-  },
-  decoration: const InputDecoration(
-    labelText: 'Tujuan',
-    border: OutlineInputBorder(),
-  ),
-  validator: (value) =>
-      value == null || value.isEmpty ? 'Tujuan wajib dipilih' : null,
-),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _fakturController,
-                        decoration: InputDecoration(
-                          labelText: 'No Faktur',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _tanggalController,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Tanggal Keluar',
-                          border: OutlineInputBorder(),
-                        ),
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2023),
-                            lastDate: DateTime(2035),
-                          );
-                          if (picked != null)
-                            _tanggalController.text = DateFormat(
-                              'yyyy-MM-dd',
-                            ).format(picked);
-                        },
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _totalHargaController,
-                        decoration: InputDecoration(
-                          labelText: 'Total Harga (Rp)',
-                          border: OutlineInputBorder(),
-                          prefixText: 'Rp ',
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _catatanController,
-                        decoration: InputDecoration(
-                          labelText: 'Catatan',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: _saveData,
-                        child: Text('Simpan Data'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: Size(double.infinity, 48),
-                          backgroundColor: Color(0xFF03A6A1),
-                        ),
-                      ),
-                    ],
-                  ),
+              SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedTujuan,
+                decoration: InputDecoration(
+                  labelText: 'Tujuan',
+                  border: OutlineInputBorder(),
+                ),
+                items: ['Resep', 'Swamedikasi']
+                    .map(
+                      (tujuan) =>
+                          DropdownMenuItem(value: tujuan, child: Text(tujuan)),
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedTujuan = val;
+                    _tujuanController.text = val ?? '';
+                  });
+                },
+                validator: (val) =>
+                    val == null || val.isEmpty ? 'Wajib pilih tujuan' : null,
+              ),
+              SizedBox(height: 16),
+              _buildTextField(_catatanController, 'Catatan', false),
+              SizedBox(height: 16),
+              ..._scannedItems.map((item) => _buildScannedItem(item)).toList(),
+              SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Total: Rp $_totalKeseluruhan',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
-            ),
-        ],
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _saveAll,
+                child: Text('Simpan Semua'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  minimumSize: Size(double.infinity, 48),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    bool isRequired,
+  ) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(),
+      ),
+      validator: (v) =>
+          (isRequired && (v == null || v.isEmpty)) ? 'Wajib diisi' : null,
+    );
+  }
+
+  Widget _buildScannedItem(Map<String, dynamic> item) {
+    final batch = item['batch'];
+    final product = batch['products'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 16),
+        Text('Produk: ${product['nama_produk']} (${batch['batch_code']})'),
+        SizedBox(height: 8),
+        Text('Expired: ${batch['exp']}'),
+        SizedBox(height: 8),
+        Text('Stok Tersedia: ${batch['qty_sisa']}'),
+        SizedBox(height: 8),
+        TextFormField(
+          controller: item['qtyController'],
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Qty Keluar',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => _updateTotal(),
+          validator: (v) =>
+              v == null || int.tryParse(v) == null ? 'Harus angka' : null,
+        ),
+        SizedBox(height: 8),
+        Text('Subtotal: Rp ${item['subtotal']}'),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _scannedItems.remove(item);
+                _updateTotal();
+              });
+            },
+            icon: Icon(Icons.delete, color: Colors.red),
+            label: Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ),
+        Divider(),
+      ],
     );
   }
 
   @override
   void dispose() {
-    _qtyController.dispose();
     _fakturController.dispose();
     _tanggalController.dispose();
     _tujuanController.dispose();
-    _totalHargaController.dispose();
     _catatanController.dispose();
+    for (final item in _scannedItems) {
+      item['qtyController'].dispose();
+    }
     super.dispose();
   }
 }

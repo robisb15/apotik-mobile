@@ -94,19 +94,15 @@ class _ProductPageState extends State<ProductPage> {
     return categories.whereType<String>().toList();
   }
 
-  
-
   List<Map<String, dynamic>> get _filteredProducts {
     return _products.where((product) {
       final name = (product['nama_produk'] ?? '').toString().toLowerCase();
       final category = (product['tag'] ?? '').toString().toLowerCase();
-      
 
       final matchesSearch = name.contains(_searchQuery.toLowerCase());
       final matchesCategory =
           _selectedCategory == null ||
           category == _selectedCategory!.toLowerCase();
-    
 
       return matchesSearch && matchesCategory;
     }).toList();
@@ -261,7 +257,6 @@ class _ProductPageState extends State<ProductPage> {
                         setState(() => _selectedCategory = value),
                   ),
                 ),
-               
               ],
             ),
           ],
@@ -325,9 +320,6 @@ class _ProductPageState extends State<ProductPage> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                 
-                   
-
                     Text(
                       'Kategori: ${_getKategoriName(product['sub_kategori_id'])}',
                     ),
@@ -408,8 +400,7 @@ class _ProductPageState extends State<ProductPage> {
       final TextEditingController _namaController = TextEditingController(
         text: existingProduct?['nama_produk'] ?? '',
       );
-     
-    
+
       final TextEditingController _hargaController = TextEditingController(
         text: existingProduct?['harga_jual']?.toString() ?? '',
       );
@@ -468,9 +459,9 @@ class _ProductPageState extends State<ProductPage> {
                       validator: (v) =>
                           v == null || v.isEmpty ? 'Wajib diisi' : null,
                     ),
-                    
+
                     SizedBox(height: 12),
-                   
+
                     SizedBox(height: 12),
                     TextFormField(
                       controller: _hargaController,
@@ -512,20 +503,18 @@ class _ProductPageState extends State<ProductPage> {
                           )
                           ? selectedSubKategoriId
                           : null,
-                     items: _subKategori
-    .map((sub) {
-      final kategori = _kategori.firstWhere(
-        (k) => k['id'] == sub['kategori_id'],
-        orElse: () => {'nama': '-'},
-      );
-      final label =
-          '${kategori['nama'] ?? '-'} - ${sub['nama'] ?? '-'}';
-      return DropdownMenuItem<int>(
-        value: sub['id'] as int,
-        child: Text(label),
-      );
-    })
-    .toList(),
+                      items: _subKategori.map((sub) {
+                        final kategori = _kategori.firstWhere(
+                          (k) => k['id'] == sub['kategori_id'],
+                          orElse: () => {'nama': '-'},
+                        );
+                        final label =
+                            '${kategori['nama'] ?? '-'} - ${sub['nama'] ?? '-'}';
+                        return DropdownMenuItem<int>(
+                          value: sub['id'] as int,
+                          child: Text(label),
+                        );
+                      }).toList(),
                       decoration: InputDecoration(
                         labelText: 'Kategori',
                         border: OutlineInputBorder(),
@@ -543,7 +532,7 @@ class _ProductPageState extends State<ProductPage> {
                             final barcodeText = _barcodeController.text.trim();
                             final dataToSave = {
                               'nama_produk': _namaController.text ?? '',
-                             
+
                               'harga_jual': harga ?? 0,
                               'tag': _tagController.text ?? '',
                               'sub_kategori_id': selectedSubKategoriId ?? '',

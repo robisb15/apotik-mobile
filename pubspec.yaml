@@ -54,6 +54,9 @@ dependencies:
   device_info_plus: ^11.5.0
   shimmer: ^2.0.0
   flutter_launcher_icons: ^0.14.4
+  barcode_scanner: ^7.0.0
+  barcode_scan2: ^4.5.1
+ 
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +76,8 @@ dev_dependencies:
 flutter:
   assets:
     - assets/icon/icon.jpeg
+    - assets/datamasuk.xlsx
+    - assets/datakeluar.xlsx
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

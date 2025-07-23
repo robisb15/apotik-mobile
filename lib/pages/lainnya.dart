@@ -21,51 +21,51 @@ class _UserPageState extends State<UserPage> {
 
   Future<void> fetchUserData() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-  final supabase = Supabase.instance.client;
+    final supabase = Supabase.instance.client;
     if (userId == null) return;
 
     try {
-    final response = await supabase
-        .from('users')
-        .select('nama, email, username, role')
-        .eq('user_id', userId) // pastikan kolom user_id ada di tabel
-        .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
-print(userId);
-    if (response == null) {
-      // Data user tidak ditemukan
+      final response = await supabase
+          .from('users')
+          .select('nama, email, username, role')
+          .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+          .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+      print(userId);
+      if (response == null) {
+        // Data user tidak ditemukan
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data user tidak ditemukan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Data ditemukan, simpan ke state
+      if (mounted) {
+        setState(() {
+          name = response['nama'];
+          email = response['email'];
+          username = response['username'];
+          role = response['role'];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      // Tangani error lainnya
+      print('Gagal mengambil data user: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Data user tidak ditemukan.'),
+            content: Text('Terjadi kesalahan saat memuat data.'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      return;
     }
-
-    // Data ditemukan, simpan ke state
-    if (mounted) {
-      setState(() {
-        name = response['nama'];
-        email = response['email'];
-        username = response['username'];
-        role = response['role'];
-        isLoading = false;
-      });
-    }
-  } catch (e) {
-    // Tangani error lainnya
-    print('Gagal mengambil data user: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Terjadi kesalahan saat memuat data.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
   }
 
   @override
@@ -210,21 +210,8 @@ print(userId);
                           fontSize: 14,
                         ),
                       ),
-                     
                     ],
                   ),
-            Spacer(),
-            IconButton(
-              icon: Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.notifications, color: Colors.white, size: 22),
-              ),
-              onPressed: () {},
-            ),
           ],
         ),
       ),

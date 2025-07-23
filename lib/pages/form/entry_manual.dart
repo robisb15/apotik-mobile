@@ -1,3 +1,4 @@
+// Pastikan import-nya ini ya
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -13,24 +14,21 @@ class _EntryManualPageState extends State<EntryManualPage> {
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _distributors = [];
+  List<Map<String, dynamic>> _productEntries = [];
 
-  Map<String, dynamic>? _selectedProduct;
-  Map<String, dynamic>? _selectedDistributor;
-
-  final _batchController = TextEditingController();
-  final _expController = TextEditingController();
-  final _qtyController = TextEditingController();
   final _fakturController = TextEditingController();
   final _tanggalController = TextEditingController();
   final _catatanController = TextEditingController();
-  final _hargaController = TextEditingController();
 
+  Map<String, dynamic>? _selectedDistributor;
+  int _totalKeseluruhan = 0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadInitData();
+    _addProductEntry(); // Tambah 1 entri default
   }
 
   Future<void> _loadInitData() async {
@@ -46,81 +44,108 @@ class _EntryManualPageState extends State<EntryManualPage> {
     });
   }
 
+  void _addProductEntry() {
+    setState(() {
+      _productEntries.add({
+        'selectedProduct': null,
+        'batchController': TextEditingController(),
+        'expController': TextEditingController(),
+        'qtyController': TextEditingController(),
+        'subtotalController': TextEditingController(),
+        'subtotal': 0,
+      });
+    });
+  }
+
+  void _removeProductEntry(int index) {
+    setState(() {
+      _productEntries.removeAt(index);
+      _updateTotalKeseluruhan();
+    });
+  }
+
+  void _updateTotalKeseluruhan() {
+    int total = 0;
+    for (final item in _productEntries) {
+      final subtotalText = item['subtotalController'].text;
+      final subtotal = int.tryParse(subtotalText) ?? 0;
+      item['subtotal'] = subtotal;
+      total += subtotal;
+    }
+    setState(() {
+      _totalKeseluruhan = total;
+    });
+  }
+
   Future<void> _saveAll() async {
-    if (!_formKey.currentState!.validate() ||
-        _selectedProduct == null ||
-        _selectedDistributor == null) {
+    if (!_formKey.currentState!.validate() || _selectedDistributor == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pastikan semua data diisi dengan benar')),
+        SnackBar(content: Text('Pastikan semua input diisi dengan benar')),
+      );
+      return;
+    }
+
+    if (_productEntries.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Minimal satu produk harus ditambahkan')),
       );
       return;
     }
 
     try {
+      _updateTotalKeseluruhan();
       final receipt = await supabase
           .from('receipts')
           .insert({
-            'tanggal': DateFormat('yyyy-MM-dd')
-                .parse(_tanggalController.text)
-                .toIso8601String(), // ✅ ubah ke string ISO
+            'tanggal': DateFormat(
+              'yyyy-MM-dd',
+            ).parse(_tanggalController.text).toIso8601String(),
             'no_faktur': _fakturController.text,
-            'total_harga': int.parse(_hargaController.text.replaceAll('.', '')),
+            'total_harga': _totalKeseluruhan,
             'catatan': _catatanController.text,
           })
           .select()
           .single();
 
-      final batch = await supabase
-          .from('product_batches')
-          .insert({
-            'product_id': _selectedProduct!['id'],
-            'distributor_id': _selectedDistributor!['id'],
-            'batch_code': _batchController.text,
-            'exp': DateFormat('yyyy-MM-dd')
-                .parse(_expController.text)
-                .toIso8601String(), // ✅ ubah ke string ISO
-            'qty_masuk': int.parse(_qtyController.text),
-            'qty_keluar': 0,
-            'qty_sisa': int.parse(_qtyController.text),
-          })
-          .select()
-          .single();
+      for (final item in _productEntries) {
+        final batch = await supabase
+            .from('product_batches')
+            .insert({
+              'product_id': item['selectedProduct']['id'],
+              'distributor_id': _selectedDistributor!['id'],
+              'batch_code': item['batchController'].text,
+              'exp': DateFormat(
+                'yyyy-MM-dd',
+              ).parse(item['expController'].text).toIso8601String(),
+              'qty_masuk': int.parse(item['qtyController'].text),
+              'qty_keluar': 0,
+              'qty_sisa': int.parse(item['qtyController'].text),
+            })
+            .select()
+            .single();
 
-      await supabase.from('receipt_details').insert({
-        'receipt_id': receipt['id'],
-        'product_batch_id':batch['id'],
-        'distributor_id': _selectedDistributor!['id'],
-        'exp': DateFormat(
-          'yyyy-MM-dd',
-        ).parse(_expController.text).toIso8601String(), // ✅ ubah ke string ISO
-        'qty_diterima': int.parse(_qtyController.text),
-        'batch_code': _batchController.text,
-      });
+        await supabase.from('receipt_details').insert({
+          'receipt_id': receipt['id'],
+          'product_batch_id': batch['id'],
+          'distributor_id': _selectedDistributor!['id'],
+          'exp': DateFormat(
+            'yyyy-MM-dd',
+          ).parse(item['expController'].text).toIso8601String(),
+          'qty_diterima': int.parse(item['qtyController'].text),
+          'batch_code': item['batchController'].text,
+          'subtotal': item['subtotal'],
+        });
+      }
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Data berhasil disimpan')));
-
-      _resetForm();
-       Navigator.pop(context);
+      Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e')));
     }
-  }
-
-  void _resetForm() {
-    setState(() {
-      _selectedProduct = null;
-      _selectedDistributor = null;
-      _batchController.clear();
-      _expController.clear();
-      _qtyController.clear();
-      _fakturController.clear();
-      _tanggalController.clear();
-      _catatanController.clear();
-    });
   }
 
   @override
@@ -138,163 +163,62 @@ class _EntryManualPageState extends State<EntryManualPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: _selectedProduct,
-                      items: _products.map((p) {
-                        return DropdownMenuItem(
-                          value: p,
-                          child: Text('${p['nama_produk']}'),
-                        );
-                      }).toList(),
-                      decoration: InputDecoration(
-                        labelText: 'Pilih Produk',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        if (v == null) return 'Produk wajib dipilih';
-                        return null;
-                      },
-                      onChanged: (v) => setState(() => _selectedProduct = v),
-                    ),
+                    _buildTextField(_fakturController, 'No Faktur'),
                     SizedBox(height: 16),
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: _selectedDistributor,
-                      items: _distributors.map((d) {
-                        return DropdownMenuItem(
-                          value: d,
-                          child: Text(d['nama']),
-                        );
-                      }).toList(),
-                      decoration: InputDecoration(
-                        labelText: 'Distributor',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        if (v == null) return 'Distributor wajib dipilih';
-                        return null;
-                      },
-                      onChanged: (v) =>
-                          setState(() => _selectedDistributor = v),
-                    ),
+                    _buildDateField(_tanggalController, 'Tanggal Masuk'),
                     SizedBox(height: 16),
-                    TextFormField(
-                      controller: _batchController,
-                      decoration: InputDecoration(
-                        labelText: 'Kode Batch',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Kode batch wajib diisi';
-                        return null;
-                      },
-                    ),
+                    _buildDistributorField(),
                     SizedBox(height: 16),
-                    TextFormField(
-                      controller: _expController,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Tanggal Expired',
-                        border: OutlineInputBorder(),
+                    _buildTextField(_catatanController, 'Catatan', maxLines: 2),
+                    SizedBox(height: 24),
+                    Text(
+                      'Produk Masuk',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Tanggal expired wajib diisi';
-                        return null;
-                      },
-                      onTap: () async {
-                        final d = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime(2035),
-                        );
-                        if (d != null)
-                          _expController.text = DateFormat(
-                            'yyyy-MM-dd',
-                          ).format(d);
-                      },
                     ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _qtyController,
-                      decoration: InputDecoration(
-                        labelText: 'Qty Masuk',
-                        border: OutlineInputBorder(),
-                        suffixText: 'pcs',
+                    ..._productEntries.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      return Column(
+                        children: [
+                          SizedBox(height: 16),
+                          _buildProductEntry(item),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _removeProductEntry(index),
+                              icon: Icon(Icons.delete, color: Colors.red),
+                              label: Text(
+                                'Hapus',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ),
+                          Divider(),
+                        ],
+                      );
+                    }),
+                    SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'Total Keseluruhan: Rp $_totalKeseluruhan',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Qty wajib diisi';
-                        if (int.tryParse(v) == null)
-                          return 'Qty harus berupa angka';
-                        return null;
-                      },
                     ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _hargaController,
-                      decoration: InputDecoration(
-                        labelText: 'Harga (Rp)',
-                        border: OutlineInputBorder(),
-                        prefixText: 'Rp ',
+                    SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _addProductEntry,
+                      icon: Icon(Icons.add),
+                      label: Text('Tambah Produk'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey,
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Total harga wajib diisi';
-                        if (int.tryParse(v.replaceAll('.', '')) == null)
-                          return 'Total harga harus berupa angka';
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _fakturController,
-                      decoration: InputDecoration(
-                        labelText: 'No Faktur',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'No faktur wajib diisi';
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _tanggalController,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Tanggal Masuk',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Tanggal masuk wajib diisi';
-                        return null;
-                      },
-                      onTap: () async {
-                        final d = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2023),
-                          lastDate: DateTime(2035),
-                        );
-                        if (d != null)
-                          _tanggalController.text = DateFormat(
-                            'yyyy-MM-dd',
-                          ).format(d);
-                      },
-                    ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _catatanController,
-                      decoration: InputDecoration(
-                        labelText: 'Catatan',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
                     ),
                     SizedBox(height: 24),
                     ElevatedButton(
@@ -309,6 +233,131 @@ class _EntryManualPageState extends State<EntryManualPage> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label, {
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(),
+      ),
+      validator: (v) => v == null || v.isEmpty ? 'Wajib isi $label' : null,
+      maxLines: maxLines,
+    );
+  }
+
+  Widget _buildDateField(TextEditingController controller, String label) {
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(),
+      ),
+      validator: (v) => v == null || v.isEmpty ? 'Wajib isi tanggal' : null,
+      onTap: () async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime(2023),
+          lastDate: DateTime(2035),
+        );
+        if (date != null)
+          controller.text = DateFormat('yyyy-MM-dd').format(date);
+      },
+    );
+  }
+
+  Widget _buildDistributorField() {
+    return Autocomplete<Map<String, dynamic>>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        return _distributors.where(
+          (d) => d['nama'].toLowerCase().contains(
+            textEditingValue.text.toLowerCase(),
+          ),
+        );
+      },
+      displayStringForOption: (option) => option['nama'],
+      onSelected: (value) => setState(() => _selectedDistributor = value),
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: 'Distributor',
+            border: OutlineInputBorder(),
+          ),
+          validator: (v) =>
+              _selectedDistributor == null ? 'Wajib pilih distributor' : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildProductEntry(Map<String, dynamic> item) {
+    return Column(
+      children: [
+        Autocomplete<Map<String, dynamic>>(
+          optionsBuilder: (TextEditingValue textEditingValue) {
+            return _products.where(
+              (p) => p['nama_produk'].toLowerCase().contains(
+                textEditingValue.text.toLowerCase(),
+              ),
+            );
+          },
+          displayStringForOption: (option) => option['nama_produk'],
+          onSelected: (value) =>
+              setState(() => item['selectedProduct'] = value),
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            return TextFormField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: InputDecoration(
+                labelText: 'Pilih Produk',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =>
+                  item['selectedProduct'] == null ? 'Wajib pilih produk' : null,
+            );
+          },
+        ),
+        SizedBox(height: 8),
+        _buildTextField(item['batchController'], 'Kode Batch'),
+        SizedBox(height: 8),
+        TextFormField(
+          controller: item['qtyController'],
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Qty Masuk',
+            border: OutlineInputBorder(),
+            suffixText: 'pcs',
+          ),
+          validator: (v) =>
+              v == null || int.tryParse(v) == null ? 'Qty harus angka' : null,
+        ),
+        SizedBox(height: 8),
+        TextFormField(
+          controller: item['subtotalController'],
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Subtotal (Rp)',
+            border: OutlineInputBorder(),
+            prefixText: 'Rp ',
+          ),
+          onChanged: (_) => _updateTotalKeseluruhan(),
+          validator: (v) => v == null || int.tryParse(v) == null
+              ? 'Subtotal harus angka'
+              : null,
+        ),
+        SizedBox(height: 8),
+        _buildDateField(item['expController'], 'Tanggal Expired'),
+      ],
     );
   }
 }

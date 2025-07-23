@@ -18,7 +18,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Widget> _pages = [
     Dashboard(),
-    PermintaanBarangPage(),
+    GroupedBarangMasukPage(),
     ScanPage(),
     BarangKeluarPage(),
     UserPage(),
