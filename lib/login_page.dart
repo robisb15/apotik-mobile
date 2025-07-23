@@ -86,15 +86,14 @@ class _LoginPageState extends State<LoginPage> {
               Column(
                 children: [
                   Container(
-  padding: const EdgeInsets.all(16),
-
-  child: Image.asset(
-    'assets/icon/icon.jpg',
-    width: 80,
-    height: 80,
-    fit: BoxFit.contain,
-  ),
-),
+                    padding: const EdgeInsets.all(16),
+                    child: Image.asset(
+                      'assets/icon/icon.jpeg',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   const Text(
                     'Apotek Swadaya Farma',
