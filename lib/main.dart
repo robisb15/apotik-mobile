@@ -5,6 +5,7 @@ import 'package:flutter_application_1/pages/laporan/laporan.dart';
 import 'package:flutter_application_1/pages/produk/produk.dart';
 import 'package:flutter_application_1/pages/subkategori/subkategori.dart';
 import 'package:flutter_application_1/pages/user/user.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
 import 'home_page.dart';
@@ -17,6 +18,7 @@ void main() async {
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpud3djbW5kemFldW5jeGV4anh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzOTkxODksImV4cCI6MjA2Nzk3NTE4OX0.oWVyw8ocP6rfdEJ9XTVskTXXwhw4Z9RbwZZj9BPjDx0', // Ganti dengan anon key Supabase kamu
   );
+  await initializeDateFormatting('id_ID', null);
   runApp(MyApp());
 }
 

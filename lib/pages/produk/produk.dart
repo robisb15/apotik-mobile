@@ -52,7 +52,11 @@ class _ProductPageState extends State<ProductPage> {
     await Future.delayed(300.ms);
 
     try {
-      final productsRes = await supabase.from('products').select();
+      final productsRes = await supabase
+          .from('products')
+          .select()
+          .filter('deleted_at', 'is', null);
+      ;
       final kategoriRes = await supabase.from('kategori').select('id, nama');
       final subKategoriRes = await supabase
           .from('sub_kategori')
@@ -286,6 +290,50 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
+  void _confirmDeleteProduct(int productId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Konfirmasi Hapus'),
+        content: Text('Apakah kamu yakin ingin menghapus produk ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteProduct(productId);
+            },
+            child: Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteProduct(int productId) async {
+    try {
+      await supabase
+          .from('products')
+          .update({'deleted_at': DateTime.now().toIso8601String()})
+          .eq('id', productId);
+
+      _fetchData();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Produk berhasil dihapus'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      _showErrorSnackbar('Gagal menghapus produk');
+      print('Delete error: $e');
+    }
+  }
+
   Widget _buildProductList() {
     return ListView.builder(
       physics: BouncingScrollPhysics(),
@@ -337,10 +385,13 @@ class _ProductPageState extends State<ProductPage> {
                   onSelected: (value) {
                     if (value == 'edit') {
                       _showAddProductDialog(context, existingProduct: product);
+                    } else if (value == 'delete') {
+                      _confirmDeleteProduct(product['id']);
                     }
                   },
                   itemBuilder: (_) => [
                     PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Hapus')),
                   ],
                 ),
               ),
