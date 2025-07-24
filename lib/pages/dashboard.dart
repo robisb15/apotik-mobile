@@ -1,9 +1,12 @@
+// ignore_for_file: deprecated_member_use, sized_box_for_whitespace
+
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/pages/stok_barang.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+// ignore: use_key_in_widget_constructors
 class Dashboard extends StatefulWidget {
   @override
   State<Dashboard> createState() => _DashboardState();
@@ -83,7 +86,7 @@ class _DashboardState extends State<Dashboard> {
           },
         )['products'];
 
-        final distributor = distributors.firstWhere(
+        distributors.firstWhere(
           (d) => d['id'] == detail['distributor_id'],
           orElse: () => {'nama': '-'},
         );
@@ -325,7 +328,7 @@ class _DashboardState extends State<Dashboard> {
               if (isLoading)
                 _buildRecentLoading()
               else
-                ...recentMasuk.map((item) => _buildBarangCard(item)).toList(),
+                ...recentMasuk.map((item) => _buildBarangCard(item)),
 
               SizedBox(height: 24),
 
@@ -344,6 +347,7 @@ class _DashboardState extends State<Dashboard> {
               else
                 ...recentKeluar
                     .map((item) => _buildBarangCard(item, keluar: true))
+                    // ignore: unnecessary_to_list_in_spreads
                     .toList(),
 
               SizedBox(height: 16),

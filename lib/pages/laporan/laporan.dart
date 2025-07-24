@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 import 'package:path/path.dart' as p;
-import 'package:pdf/pdf.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf_render/pdf_render.dart';
+import 'package:printing/printing.dart';
+
 
 class InventoryTabsPage extends StatefulWidget {
   @override
@@ -474,11 +477,10 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
     }
 
     try {
+      // Create a PDF document
       final pdf = pw.Document();
-      final font = pw.Font.helvetica();
-      final boldFont = pw.Font.helveticaBold();
 
-      // Formatter
+      // Format values for display
       String formatValue(dynamic value, String field) {
         if (value == null) return '-';
         if (field == 'tanggal' && value is String) {
@@ -506,32 +508,81 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
         return value.toString();
       }
 
-      List<List<String>> pdfData = [];
-      List<String> headers = [];
+      // Prepare headers and data
+      List<pw.Widget> tableRows = [];
       num totalHarga = 0;
       num totalQtyKeluar = 0;
 
-      // ============================
-      // Barang Masuk
-      // ============================
+      // Add title and date
+      tableRows.add(
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              'Laporan $title',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text(
+              'Tanggal: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}',
+              style: pw.TextStyle(fontSize: 10),
+            ),
+          ],
+        ),
+      );
+
+      // Add date range if available
+      if (dateRange != null) {
+        tableRows.add(
+          pw.Text(
+            'Periode: ${DateFormat('dd/MM/yyyy').format(dateRange.start)} - '
+            '${DateFormat('dd/MM/yyyy').format(dateRange.end)}',
+            style: pw.TextStyle(fontSize: 10),
+          ),
+        );
+      }
+
+      tableRows.add(pw.SizedBox(height: 20));
+
+      // Create table header
+      List<pw.Widget> headerCells = [];
+      List<pw.Widget> dataCells = [];
+
+      // Determine columns based on report type
       if (title == 'Barang Masuk') {
-        headers = [
-          'Tanggal',
-          'No Faktur',
-          'Produk',
-          'Batch',
-          'Qty',
-          'Satuan',
-          'Distributor',
-          'Expired',
-          'Total Harga',
-        ];
+        headerCells.addAll([
+          pw.Text(
+            'Tanggal',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'No Faktur',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Produk',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text('Qty', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Satuan',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Distributor',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Expired',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Total Harga',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+        ]);
 
-        pdfData = data.map((item) {
-          // Debug print untuk mengecek data per item
-          print('Item data: $item');
-
-          // Handle tanggal dengan format ISO yang valid
+        for (var item in data) {
+          // Format date
           String formattedDate = '-';
           try {
             if (item['tanggal'] != null) {
@@ -540,199 +591,234 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
               ).format(DateTime.parse(item['tanggal'].toString()).toLocal());
             }
           } catch (e) {
-            print('Error formatting date: ${item['tanggal']}');
+            debugPrint('Error formatting date: ${item['tanggal']}');
           }
 
-          // Handle product name
-          String productName = '-';
-          if (item['product'] != null && item['product'] is Map) {
-            productName = item['product']['nama_produk']?.toString() ?? '-';
-          }
-
-          // Handle distributor name
-          String distributorName = '-';
-          if (item['distributor'] != null && item['distributor'] is Map) {
-            distributorName = item['distributor']['nama']?.toString() ?? '-';
-          }
-
-          // Handle total harga
-          String totalHarga = 'Rp 0';
+          // Calculate total price
+          String totalHargaStr = 'Rp 0';
           try {
             if (item['total_harga'] != null) {
-              totalHarga = NumberFormat.currency(
-                locale: 'id_ID',
-                symbol: 'Rp ',
-              ).format(double.parse(item['total_harga'].toString()));
+              totalHargaStr = formatValue(item['total_harga'], 'harga');
+              totalHarga += num.tryParse(item['total_harga'].toString()) ?? 0;
             }
           } catch (e) {
             debugPrint('Error formatting harga: ${item['total_harga']}');
           }
 
-          return [
-            formattedDate,
-            item['no_faktur']?.toString() ?? '-',
-            productName,
-            item['batch_code']?.toString() ?? '-',
-            item['qty_diterima']?.toString() ?? '0',
-            item['satuan']?.toString() ?? '-',
-            distributorName,
-            formatValue(item['exp'], 'exp'),
-            totalHarga,
-          ];
-        }).toList();
-
-        debugPrint('PDF Data: $pdfData'); // Debug hasil transformasi
+          dataCells.addAll([
+            pw.Text(formattedDate),
+            pw.Text(item['no_faktur']?.toString() ?? '-'),
+            pw.Text(item['product']?['nama_produk']?.toString() ?? '-'),
+            pw.Text(item['qty_diterima']?.toString() ?? '0'),
+            pw.Text(item['satuan']?.toString() ?? '-'),
+            pw.Text(item['distributor']?['nama']?.toString() ?? '-'),
+            pw.Text(formatValue(item['exp'], 'exp')),
+            pw.Text(totalHargaStr),
+          ]);
+        }
       } else if (title == 'Barang Keluar') {
-        headers = [
-          'Tanggal',
-          'No Faktur',
-          'Produk',
-          'Batch',
-          'Qty',
-          'Satuan',
-          'Tujuan',
-          'Expired',
-        ];
+        headerCells.addAll([
+          pw.Text(
+            'Tanggal',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'No Faktur',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Produk',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text('Qty', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Satuan',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Tujuan',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Expired',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+        ]);
 
-        pdfData = data.map((item) {
+        for (var item in data) {
           final qty = item['qty_keluar'] ?? 0;
           totalQtyKeluar += (qty is num)
               ? qty
               : num.tryParse(qty.toString()) ?? 0;
 
-          return [
-            formatValue(item['tanggal'], 'tanggal'),
-            item['no_faktur']?.toString() ?? '-',
-            item['product']?['nama_produk']?.toString() ?? '-',
-            item['batch_code']?.toString() ?? '-',
-            qty.toString(),
-            item['satuan']?.toString() ?? '-',
-            item['tujuan']?.toString() ?? '-',
-            formatValue(item['exp'], 'exp'),
-          ];
-        }).toList();
-
-        // ============================
-        // Stok Produk
-        // ============================
+          dataCells.addAll([
+            pw.Text(formatValue(item['tanggal'], 'tanggal')),
+            pw.Text(item['no_faktur']?.toString() ?? '-'),
+            pw.Text(item['product']?['nama_produk']?.toString() ?? '-'),
+            pw.Text(qty.toString()),
+            pw.Text(item['satuan']?.toString() ?? '-'),
+            pw.Text(item['tujuan']?.toString() ?? '-'),
+            pw.Text(formatValue(item['exp'], 'exp')),
+          ]);
+        }
       } else if (title == 'Stok Produk') {
-        headers = [
-          'Kode Produk',
-          'Nama Produk',
-          'Batch',
-          'Qty Sisa',
-          'Qty Keluar',
-          'Satuan',
-          'Sub Kategori',
-          'Expired',
-        ];
+        headerCells.addAll([
+          pw.Text(
+            'Kode Produk',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Nama Produk',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text('Batch', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Qty Sisa',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Qty Keluar',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Satuan',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Sub Kategori',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Expired',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+        ]);
 
-        pdfData = data.map((item) {
-          return [
-            item['products']?['kode_produk']?.toString() ?? '-',
-            item['products']?['nama_produk']?.toString() ?? '-',
-            item['batch_code']?.toString() ?? '-',
-            item['qty_sisa']?.toString() ?? '0',
-            item['qty_keluar']?.toString() ?? '0',
-            item['products']?['satuan']?.toString() ?? '-',
-            item['sub_kategori']?['nama']?.toString() ?? '-',
-            formatValue(item['exp'], 'exp'),
-          ];
-        }).toList();
+        for (var item in data) {
+          dataCells.addAll([
+            pw.Text(item['products']?['kode_produk']?.toString() ?? '-'),
+            pw.Text(item['products']?['nama_produk']?.toString() ?? '-'),
+            pw.Text(item['batch_code']?.toString() ?? '-'),
+            pw.Text(item['qty_sisa']?.toString() ?? '0'),
+            pw.Text(item['qty_keluar']?.toString() ?? '0'),
+            pw.Text(item['products']?['satuan']?.toString() ?? '-'),
+            pw.Text(item['sub_kategori']?['nama']?.toString() ?? '-'),
+            pw.Text(formatValue(item['exp'], 'exp')),
+          ]);
+        }
       }
 
-      // ============================
-      // Bangun PDF
-      // ============================
-      pdf.addPage(
-        pw.Page(
-          // pageFormat: PdfPageFormat.a4.landscape,
-          margin: pw.EdgeInsets.all(20),
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+      // Create table
+      tableRows.add(
+        pw.Table(
+          border: pw.TableBorder.all(),
+          children: [
+            // Header row
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: PdfColor.fromHex('#03A6A1')),
+              children: headerCells,
+            ),
+            // Data rows
+            for (int i = 0; i < data.length; i++)
+              pw.TableRow(
+                decoration: i % 2 == 0
+                    ? pw.BoxDecoration(color: PdfColor.fromHex('#F5F5F5'))
+                    : null,
+                children: [
+                  for (int j = 0; j < headerCells.length; j++)
+                    dataCells[i * headerCells.length + j],
+                ],
+              ),
+          ],
+        ),
+      );
+
+      // Add totals if applicable
+      if (title == 'Barang Masuk') {
+        tableRows.add(
+          pw.Padding(
+            padding: pw.EdgeInsets.only(top: 20),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.end,
               children: [
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Laporan $title',
-                      style: pw.TextStyle(font: boldFont, fontSize: 18),
-                    ),
-                    pw.Text(
-                      'Tanggal: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}',
-                      style: pw.TextStyle(font: font),
-                    ),
-                  ],
-                ),
-                pw.SizedBox(height: 10),
-                if (dateRange != null)
-                  pw.Text(
-                    'Periode: ${DateFormat('dd/MM/yyyy').format(dateRange.start)} - ${DateFormat('dd/MM/yyyy').format(dateRange.end)}',
-                    style: pw.TextStyle(font: font),
-                  ),
-                pw.SizedBox(height: 20),
-                pw.Table.fromTextArray(
-                  headers: headers,
-                  data: pdfData,
-                  headerStyle: pw.TextStyle(
-                    font: boldFont,
-                    color: PdfColors.white,
-                  ),
-                  headerDecoration: pw.BoxDecoration(color: PdfColors.teal),
-                  cellStyle: pw.TextStyle(font: font),
-                  cellAlignment: pw.Alignment.centerLeft,
-                  border: pw.TableBorder.all(color: PdfColors.grey300),
-                  cellPadding: pw.EdgeInsets.all(5),
-                ),
-                pw.SizedBox(height: 20),
-
-                // Tambahan Total
-                if (title == 'Barang Masuk')
-                  pw.Align(
-                    alignment: pw.Alignment.centerRight,
-                    child: pw.Text(
-                      'Total Harga Keseluruhan: ${formatValue(totalHarga, 'harga')}',
-                      style: pw.TextStyle(font: boldFont, fontSize: 12),
-                    ),
-                  ),
-                if (title == 'Barang Keluar')
-                  pw.Align(
-                    alignment: pw.Alignment.centerRight,
-                    child: pw.Text(
-                      'Total Barang Keluar: $totalQtyKeluar',
-                      style: pw.TextStyle(font: boldFont, fontSize: 12),
-                    ),
-                  ),
-
-                pw.SizedBox(height: 30),
-                pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('Hormat kami,', style: pw.TextStyle(font: font)),
-                      pw.SizedBox(height: 40),
-                      pw.Text('(Staff)', style: pw.TextStyle(font: boldFont)),
-                    ],
+                pw.Text(
+                  'Total Harga Keseluruhan: ${formatValue(totalHarga, 'harga')}',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
                   ),
                 ),
               ],
+            ),
+          ),
+        );
+      } else if (title == 'Barang Keluar') {
+        tableRows.add(
+          pw.Padding(
+            padding: pw.EdgeInsets.only(top: 20),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.end,
+              children: [
+                pw.Text(
+                  'Total Barang Keluar: $totalQtyKeluar',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Add signature
+      tableRows.add(
+        pw.Padding(
+          padding: pw.EdgeInsets.only(top: 30),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.end,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text('Hormat kami,'),
+                  pw.SizedBox(height: 10),
+                  pw.Text(
+                    '(Staff)',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Add the page to the document
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4.landscape,
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: tableRows,
             );
           },
         ),
       );
 
+      // Save and share the PDF
       final bytes = await pdf.save();
-      await _saveFile(bytes, '$title.pdf');
+      await Printing.sharePdf(bytes: bytes, filename: '$title.pdf');
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('PDF $title berhasil diekspor')));
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal ekspor PDF: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal ekspor PDF: ${e.toString()}')),
+      );
       debugPrint('Error exporting PDF: $e');
     }
   }
@@ -1210,15 +1296,10 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
                     _buildFilterButton(fetchStokProduk),
                   ],
                 ),
-                // SizedBox(height: 10),
-                // _buildSubKategoriDropdown(),
-                // SizedBox(height: 10),
-                // Wrap(
-                //   spacing: 8,
-                //   children: [
-                //     _buildSubKategoriChip(),
-                //   ],
-                // ),
+                SizedBox(height: 10),
+                _buildSubKategoriDropdown(),
+                SizedBox(height: 10),
+                Wrap(spacing: 8, children: [_buildSubKategoriChip()]),
                 SizedBox(height: 16),
                 _buildExportButtons(stokProduk, "Stok Produk"),
                 SizedBox(height: 16),

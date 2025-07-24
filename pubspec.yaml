@@ -48,7 +48,7 @@ dependencies:
   path_provider: ^2.1.2
   permission_handler: ^11.3.0
   pdf: ^3.10.4
-  printing: ^5.11.0
+  printing: ^5.14.2
   csv: ^5.0.1
   syncfusion_flutter_xlsio: ^29.2.11
   device_info_plus: ^11.5.0
@@ -56,7 +56,7 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
   barcode_scanner: ^7.0.0
   barcode_scan2: ^4.5.1
- 
+  pdf_render: ^1.4.7
 
 dev_dependencies:
   flutter_test:

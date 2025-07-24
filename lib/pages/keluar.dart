@@ -1,4 +1,5 @@
-import 'dart:ffi';
+// ignore_for_file: unused_local_variable, use_key_in_widget_constructors, use_build_context_synchronously, deprecated_member_use, unnecessary_brace_in_string_interps
+
 import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
@@ -6,7 +7,6 @@ import 'package:excel/excel.dart' as exceldata;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -100,21 +100,19 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
             .eq('id', batchId)
             .single();
 
-        if (batch != null) {
-          final currentQtyKeluar = batch['qty_keluar'] ?? 0;
-          final currentQtySisa = batch['qty_sisa'] ?? 0;
+        final currentQtyKeluar = batch['qty_keluar'] ?? 0;
+        final currentQtySisa = batch['qty_sisa'] ?? 0;
 
-          // Calculate new quantities
-          final newQtyKeluar = currentQtyKeluar - qtyKeluar;
-          final newQtySisa = currentQtySisa + qtyKeluar;
+        // Calculate new quantities
+        final newQtyKeluar = currentQtyKeluar - qtyKeluar;
+        final newQtySisa = currentQtySisa + qtyKeluar;
 
-          // Update the product batch
-          await supabase
-              .from('product_batches')
-              .update({'qty_keluar': newQtyKeluar, 'qty_sisa': newQtySisa})
-              .eq('id', batchId);
-        }
-      }
+        // Update the product batch
+        await supabase
+            .from('product_batches')
+            .update({'qty_keluar': newQtyKeluar, 'qty_sisa': newQtySisa})
+            .eq('id', batchId);
+            }
 
       // 3. Delete outgoing details
       await supabase
@@ -304,7 +302,6 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
             final tujuan = row[3]?.value?.toString().trim() ?? '';
             final batchNumber = row[4]?.value?.toString().trim() ?? '';
             final expDate = row[5]?.value?.toString().trim() ?? '';
-            final satuan = row[6]?.value?.toString().trim() ?? 'pcs';
             final jumlah = int.tryParse(row[7]?.value?.toString() ?? '') ?? 0;
             final subtotal = int.tryParse(row[8]?.value?.toString() ?? '') ?? 0;
 
