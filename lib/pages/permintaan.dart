@@ -367,29 +367,37 @@ class _GroupedBarangMasukPageState extends State<GroupedBarangMasukPage> {
                   : int.tryParse(existingTotalRaw.toString()) ?? 0;
               final updatedTotal = existingTotal + subtotal;
 
-              final updateResponse = await supabase
+              final updateResponseList = await supabase
                   .from('receipts')
                   .update({
                     'total_harga': updatedTotal,
                     'tanggal': tanggalFormat,
                   })
                   .eq('no_faktur', noFaktur)
-                  .select()
-                  .single();
+                  .select();
 
-              receipt = updateResponse;
+              if (updateResponseList.isEmpty) {
+                throw Exception(
+                  'Gagal update receipt dengan no_faktur $noFaktur',
+                );
+              }
+
+              receipt = updateResponseList.first;
             } else {
-              final insertResponse = await supabase
-                  .from('receipts')
-                  .insert({
+              final insertResponseList =
+                  await supabase.from('receipts').insert({
                     'tanggal': tanggalFormat,
                     'no_faktur': noFaktur,
                     'total_harga': subtotal,
-                  })
-                  .select()
-                  .single();
+                  }).select();
 
-              receipt = insertResponse;
+              if (insertResponseList.isEmpty) {
+                throw Exception(
+                  'Gagal insert receipt dengan no_faktur $noFaktur',
+                );
+              }
+
+              receipt = insertResponseList.first;
             }
 
             // Create receipt detail
@@ -440,52 +448,57 @@ class _GroupedBarangMasukPageState extends State<GroupedBarangMasukPage> {
   Future<Map<String, dynamic>> _findOrCreateProduct(
     String namaProduk,
     String satuan,
-    // Add other parameters as needed
   ) async {
-    // Check if product exists
-    final existing = await supabase
-        .from('products')
-        .select()
-        .eq('nama_produk', namaProduk)
-        .maybeSingle();
+    try {
+      final existingList = await supabase
+          .from('products')
+          .select()
+          .eq('nama_produk', namaProduk);
 
-    if (existing != null) return existing;
+      if (existingList.isNotEmpty) {
+        return existingList.first;
+      }
 
-    // Create new product
-    final response = await supabase
-        .from('products')
-        .insert({
-          'nama_produk': namaProduk,
-          'satuan': satuan,
-          // Add other default values
-        })
-        .select()
-        .single();
+      final insertResponseList = await supabase.from('products').insert({
+        'nama_produk': namaProduk,
+        'satuan': satuan,
+      }).select();
 
-    return response;
+      if (insertResponseList.isEmpty) {
+        throw Exception('Gagal insert produk $namaProduk');
+      }
+
+      return insertResponseList.first;
+    } catch (e) {
+      debugPrint('Error _findOrCreateProduct: $e');
+      return {};
+    }
   }
 
-  Future<int> _findOrCreateDistributor(String namaDistributor) async {
-    // Check if distributor exists
-    final existing = await supabase
-        .from('distributors')
-        .select()
-        .eq('nama', namaDistributor)
-        .maybeSingle();
+  Future<int?> _findOrCreateDistributor(String namaDistributor) async {
+    try {
+      final existingList = await supabase
+          .from('distributors')
+          .select()
+          .eq('nama', namaDistributor);
 
-    if (existing != null) return existing['id'];
+      if (existingList.isNotEmpty) {
+        return existingList.first['id'];
+      }
 
-    // Create new distributor
-    final response = await supabase
-        .from('distributors')
-        .insert({
-          'nama': namaDistributor,
-          // Add other default values
-        })
-        .select()
-        .single();
+      final insertResponseList = await supabase.from('distributors').insert({
+        'nama': namaDistributor,
+      }).select();
 
-    return response['id'];
+      if (insertResponseList.isEmpty) {
+        throw Exception('Gagal insert distributor $namaDistributor');
+      }
+
+      return insertResponseList.first['id'];
+    } catch (e) {
+      debugPrint('Error _findOrCreateDistributor: $e');
+      return null;
+    }
   }
 
   Future<void> _loadData() async {
