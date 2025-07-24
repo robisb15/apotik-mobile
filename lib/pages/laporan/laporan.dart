@@ -235,19 +235,19 @@ class _InventoryTabsPageState extends State<InventoryTabsPage>
     setState(() => _isLoading = true);
     try {
       final query = client.from('product_batches').select('''
-        *,
-        products!inner(
-          nama_produk,
-          kode_produk,
-          satuan,
-          sub_kategori_id,
-          sub_kategori!inner(
-            nama,
-            kategori_id,
-            kategori(nama)
-          )
-        )
-      )''');
+  *,
+  products(
+    nama_produk,
+    kode_produk,
+    satuan,
+    sub_kategori_id,
+    sub_kategori(
+      nama,
+      kategori_id,
+      kategori(nama)
+    )
+  )
+''');
 
       // Filter berdasarkan sub_kategori_id
       if (selectedSubKategoriId != null) {
