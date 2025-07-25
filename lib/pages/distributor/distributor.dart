@@ -20,11 +20,57 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
 
   Map<String, dynamic>? _editingDistributor;
   bool _isLoading = true;
+  String? role;
 
   @override
   void initState() {
     super.initState();
     _loadDistributors();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final supabase = Supabase.instance.client;
+    if (userId == null) return;
+
+    try {
+      final response = await supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+          .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+      if (response == null) {
+        // Data user tidak ditemukan
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data user tidak ditemukan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Data ditemukan, simpan ke state
+      if (mounted) {
+        setState(() {
+          role = response['role'];
+        });
+      }
+    } catch (e) {
+      // Tangani error lainnya
+      print('Gagal mengambil data user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan saat memuat data.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadDistributors() async {
@@ -224,6 +270,7 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
         title: Text('Manajemen Distributor'),
         centerTitle: true,
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: _isLoading
@@ -248,17 +295,20 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
                   color: Color(0xFF03A6A1),
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _showDistributorForm(context),
-                icon: Icon(Icons.add),
-                label: Text('Tambah'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF03A6A1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              if (role == 'admin') ...[
+                ElevatedButton.icon(
+                  onPressed: () => _showDistributorForm(context),
+                  icon: Icon(Icons.add),
+                  label: Text('Tambah'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF03A6A1),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
           SizedBox(height: 16),
@@ -308,15 +358,17 @@ class _DistributorManagementPageState extends State<DistributorManagementPage> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                IconButton(
-                                  icon: Icon(Icons.edit),
-                                  onPressed: () =>
-                                      _showDistributorForm(context, dist),
-                                ),
-                                IconButton(
-                                  icon: Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () => _confirmDelete(dist),
-                                ),
+                                if (role == 'admin') ...[
+                                  IconButton(
+                                    icon: Icon(Icons.edit),
+                                    onPressed: () =>
+                                        _showDistributorForm(context, dist),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _confirmDelete(dist),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

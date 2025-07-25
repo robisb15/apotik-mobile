@@ -41,10 +41,56 @@ class _ProductPageState extends State<ProductPage> {
   String? _selectedCategory;
   String? _selectedManufacturer;
   bool _hasScanned = false;
+  String? role;
   @override
   void initState() {
     super.initState();
     _fetchData();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final supabase = Supabase.instance.client;
+    if (userId == null) return;
+
+    try {
+      final response = await supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+          .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+      if (response == null) {
+        // Data user tidak ditemukan
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data user tidak ditemukan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Data ditemukan, simpan ke state
+      if (mounted) {
+        setState(() {
+          role = response['role'];
+        });
+      }
+    } catch (e) {
+      // Tangani error lainnya
+      print('Gagal mengambil data user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan saat memuat data.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _fetchData() async {
@@ -119,6 +165,7 @@ class _ProductPageState extends State<ProductPage> {
       appBar: AppBar(
         title: Text('Manajemen Produk'),
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -191,47 +238,49 @@ class _ProductPageState extends State<ProductPage> {
                   ),
                 ),
                 SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(20),
+                if (role == 'admin') ...[
+                  ElevatedButton(
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
                         ),
+                        builder: (_) => Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              leading: Icon(Icons.edit),
+                              title: Text('Entry Manual'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _showAddProductDialog(context);
+                              },
+                            ),
+                            ListTile(
+                              leading: Icon(Icons.qr_code_scanner),
+                              title: Text('Scan Barcode'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _scanBarcodeAndOpenForm(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF03A6A1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      builder: (_) => Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ListTile(
-                            leading: Icon(Icons.edit),
-                            title: Text('Entry Manual'),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _showAddProductDialog(context);
-                            },
-                          ),
-                          ListTile(
-                            leading: Icon(Icons.qr_code_scanner),
-                            title: Text('Scan Barcode'),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _scanBarcodeAndOpenForm(context);
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF03A6A1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      padding: EdgeInsets.all(12),
                     ),
-                    padding: EdgeInsets.all(12),
-                  ),
-                  child: Icon(Icons.add, color: Colors.white),
-                ).animate().scale(duration: 300.ms),
+                    child: Icon(Icons.add, color: Colors.white),
+                  ).animate().scale(duration: 300.ms),
+                ],
               ],
             ),
             SizedBox(height: 12),
@@ -281,10 +330,12 @@ class _ProductPageState extends State<ProductPage> {
             style: TextStyle(color: Colors.grey),
           ),
           SizedBox(height: 8),
-          TextButton(
-            onPressed: () => _showAddProductDialog(context),
-            child: Text('Tambah Produk'),
-          ),
+          if (role == 'admin') ...[
+            TextButton(
+              onPressed: () => _showAddProductDialog(context),
+              child: Text('Tambah Produk'),
+            ),
+          ],
         ],
       ),
     );
@@ -381,19 +432,25 @@ class _ProductPageState extends State<ProductPage> {
                     ),
                   ],
                 ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showAddProductDialog(context, existingProduct: product);
-                    } else if (value == 'delete') {
-                      _confirmDeleteProduct(product['id']);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Hapus')),
-                  ],
-                ),
+
+                trailing: role == 'admin'
+                    ? PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _showAddProductDialog(
+                              context,
+                              existingProduct: product,
+                            );
+                          } else if (value == 'delete') {
+                            _confirmDeleteProduct(product['id']);
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          PopupMenuItem(value: 'delete', child: Text('Hapus')),
+                        ],
+                      )
+                    : null,
               ),
             )
             .animate()

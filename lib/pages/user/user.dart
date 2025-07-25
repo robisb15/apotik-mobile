@@ -69,9 +69,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
         _resetForm();
         await _loadUsers();
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e')));
       }
     }
   }
@@ -84,9 +84,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
       await supabase.from('users').delete().eq('id', user['id']);
       await _loadUsers();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menghapus pengguna: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menghapus pengguna: $e')));
     }
   }
 
@@ -181,9 +181,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.lock),
                             suffixIcon: IconButton(
-                              icon: Icon(showPassword
-                                  ? Icons.visibility
-                                  : Icons.visibility_off),
+                              icon: Icon(
+                                showPassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
                               onPressed: () {
                                 setModalState(() {
                                   showPassword = !showPassword;
@@ -213,9 +215,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              icon: Icon(showConfirmPassword
-                                  ? Icons.visibility
-                                  : Icons.visibility_off),
+                              icon: Icon(
+                                showConfirmPassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
                               onPressed: () {
                                 setModalState(() {
                                   showConfirmPassword = !showConfirmPassword;
@@ -283,45 +287,49 @@ class _UserManagementPageState extends State<UserManagementPage> {
         title: Text('Kelola Pengguna'),
         centerTitle: true,
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : _users.isEmpty
-              ? Center(child: Text('Belum ada pengguna.'))
-              : ListView.builder(
-                  padding: EdgeInsets.all(16),
-                  itemCount: _users.length,
-                  itemBuilder: (context, index) {
-                    final user = _users[index];
-                    return Card(
-                      margin: EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Color(0xFF03A6A1).withOpacity(0.1),
-                          child: Icon(Icons.person, color: Color(0xFF03A6A1)),
+          ? Center(child: Text('Belum ada pengguna.'))
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _users.length,
+              itemBuilder: (context, index) {
+                final user = _users[index];
+                return Card(
+                  margin: EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Color(0xFF03A6A1).withOpacity(0.1),
+                      child: Icon(Icons.person, color: Color(0xFF03A6A1)),
+                    ),
+                    title: Text(user['nama']),
+                    subtitle: Text('${user['email']} (${user['role']})'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _showUserForm(user),
                         ),
-                        title: Text(user['nama']),
-                        subtitle: Text('${user['email']} (${user['role']})'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () => _showUserForm(user),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _confirmDelete(user),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                        if (user['role'] != 'pemilik') ...[
+                          IconButton(
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _confirmDelete(user),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showUserForm(),
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
         child: Icon(Icons.add),
       ),
     );

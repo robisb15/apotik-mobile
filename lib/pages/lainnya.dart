@@ -125,7 +125,7 @@ class _UserPageState extends State<UserPage> {
                           SizedBox(height: 20),
 
                           // Manajemen Sistem (Hanya admin/owner)
-                          if (role == 'admin' || role == 'owner') ...[
+                          if (role == 'pemilik') ...[
                             _buildSectionHeader('Manajemen Sistem'),
                             _buildMenuItem(
                               icon: Icons.people_alt,

@@ -15,11 +15,57 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
   List<Map<String, dynamic>> _categories = [];
   bool _isLoading = true;
   int? _editingIndex;
+  String? role;
 
   @override
   void initState() {
     super.initState();
     _fetchCategories();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final supabase = Supabase.instance.client;
+    if (userId == null) return;
+
+    try {
+      final response = await supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+          .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+      if (response == null) {
+        // Data user tidak ditemukan
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data user tidak ditemukan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Data ditemukan, simpan ke state
+      if (mounted) {
+        setState(() {
+          role = response['role'];
+        });
+      }
+    } catch (e) {
+      // Tangani error lainnya
+      print('Gagal mengambil data user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan saat memuat data.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _fetchCategories() async {
@@ -294,18 +340,21 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                 color: Color(0xFF03A6A1),
               ),
             ),
-            ElevatedButton.icon(
-              onPressed: () => _showCategoryForm(context),
-              icon: Icon(Icons.add, size: 18),
-              label: Text('Tambah'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF03A6A1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            if (role == 'admin') ...[
+              ElevatedButton.icon(
+                onPressed: () => _showCategoryForm(context),
+                icon: Icon(Icons.add, size: 18),
+                label: Text('Tambah'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF03A6A1),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -338,10 +387,12 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
             SizedBox(height: 16),
             Text('Belum ada kategori', style: TextStyle(color: Colors.grey)),
             SizedBox(height: 8),
-            TextButton(
-              onPressed: () => _showCategoryForm(context),
-              child: Text('Tambah Kategori'),
-            ),
+            if (role == 'admin') ...[
+              TextButton(
+                onPressed: () => _showCategoryForm(context),
+                child: Text('Tambah Kategori'),
+              ),
+            ],
           ],
         ).animate().fadeIn(),
       );
@@ -376,14 +427,22 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: Icon(Icons.edit_outlined, color: Colors.grey[600]),
-                      onPressed: () => _showCategoryForm(context, index),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.delete_outline, color: Colors.red[400]),
-                      onPressed: () => _confirmDelete(index),
-                    ),
+                    if (role == 'admin') ...[
+                      IconButton(
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          color: Colors.grey[600],
+                        ),
+                        onPressed: () => _showCategoryForm(context, index),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red[400],
+                        ),
+                        onPressed: () => _confirmDelete(index),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -408,6 +467,7 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
       appBar: AppBar(
         title: Text('Manajemen Kategori'),
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
         shape: RoundedRectangleBorder(

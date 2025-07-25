@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:excel/excel.dart' as exceldata;
@@ -30,11 +29,57 @@ class _GroupedBarangMasukPageState extends State<GroupedBarangMasukPage> {
   String _searchQuery = '';
   int _totalAllFaktur = 0;
   int _totalFaktur = 0;
+  String? role;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final supabase = Supabase.instance.client;
+    if (userId == null) return;
+
+    try {
+      final response = await supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+          .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+      if (response == null) {
+        // Data user tidak ditemukan
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data user tidak ditemukan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Data ditemukan, simpan ke state
+      if (mounted) {
+        setState(() {
+          role = response['role'];
+        });
+      }
+    } catch (e) {
+      // Tangani error lainnya
+      print('Gagal mengambil data user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan saat memuat data.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _confirmDeleteReceipt(
@@ -580,7 +625,7 @@ class _GroupedBarangMasukPageState extends State<GroupedBarangMasukPage> {
           'sub_kategori': product['sub_kategori']?['nama'] ?? '-',
           'tag': product['tag'] ?? '-',
           'subtotal': detail['subtotal'] ?? 0,
-          'exp': detail['exp'] ?? '-',
+          'exp': (batch['exp'] ?? detail['exp']) ?? '-',
           'keterangan': receipt['catatan'] ?? '-',
         });
       }
@@ -673,31 +718,33 @@ class _GroupedBarangMasukPageState extends State<GroupedBarangMasukPage> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(Icons.upload_file, size: 28),
-            tooltip: 'Import Excel',
-            onPressed: _showImportDialog,
-          ),
-          IconButton(
-            icon: Icon(Icons.add, size: 28),
-            tooltip: 'Entry Manual',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => EntryManualPage()),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.qr_code_scanner, size: 28),
-            tooltip: 'Scan Barcode',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => EntryScanBarcodePage()),
-              );
-            },
-          ),
+          if (role == 'admin') ...[
+            IconButton(
+              icon: Icon(Icons.upload_file, size: 28),
+              tooltip: 'Import Excel',
+              onPressed: _showImportDialog,
+            ),
+            IconButton(
+              icon: Icon(Icons.add, size: 28),
+              tooltip: 'Entry Manual',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => EntryManualPage()),
+                );
+              },
+            ),
+            IconButton(
+              icon: Icon(Icons.qr_code_scanner, size: 28),
+              tooltip: 'Scan Barcode',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => EntryScanBarcodePage()),
+                );
+              },
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -962,7 +1009,7 @@ class _GroupedBarangMasukPageState extends State<GroupedBarangMasukPage> {
                 style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
-            if (receiptId != null)
+            if (receiptId != null && role == 'admin')
               IconButton(
                 icon: Icon(Icons.delete, color: Colors.red[400], size: 20),
                 padding: EdgeInsets.zero,

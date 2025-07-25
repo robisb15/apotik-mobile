@@ -30,6 +30,7 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
   int _totalAllFaktur = 0;
   int _totalFaktur = 0;
   DateTimeRange? _selectedDateRange;
+  String? role;
 
   // Medicine type icons mapping
   final Map<String, IconData> _medicineIcons = {
@@ -45,6 +46,51 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
   void initState() {
     super.initState();
     _loadData();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final supabase = Supabase.instance.client;
+    if (userId == null) return;
+
+    try {
+      final response = await supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', userId) // pastikan kolom user_id ada di tabel
+          .maybeSingle(); // gunakan maybeSingle agar tidak throw error otomatis
+      if (response == null) {
+        // Data user tidak ditemukan
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data user tidak ditemukan.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Data ditemukan, simpan ke state
+      if (mounted) {
+        setState(() {
+          role = response['role'];
+        });
+      }
+    } catch (e) {
+      // Tangani error lainnya
+      print('Gagal mengambil data user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan saat memuat data.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _confirmDeleteOutgoing(
@@ -112,7 +158,7 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
             .from('product_batches')
             .update({'qty_keluar': newQtyKeluar, 'qty_sisa': newQtySisa})
             .eq('id', batchId);
-            }
+      }
 
       // 3. Delete outgoing details
       await supabase
@@ -648,16 +694,35 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(Icons.upload_file, size: 28),
-            tooltip: 'Import Excel',
-            onPressed: _showImportDialog,
-          ),
-          IconButton(
-            icon: Icon(Icons.add, size: 28),
-            tooltip: 'Tambah Barang Keluar',
-            onPressed: () => _showAddMenu(context),
-          ),
+          if (role == 'admin') ...[
+            IconButton(
+              icon: Icon(Icons.upload_file, size: 28),
+              tooltip: 'Import Excel',
+              onPressed: _showImportDialog,
+            ),
+            IconButton(
+              icon: Icon(Icons.add, size: 28),
+              tooltip: 'Entry Manual',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EntryManualBarangKeluarPage(),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: Icon(Icons.qr_code_scanner, size: 28),
+              tooltip: 'Scan Barcode',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ScanBarangKeluarPage()),
+                );
+              },
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -915,7 +980,7 @@ class _BarangKeluarPageState extends State<BarangKeluarPage> {
                 style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
-            if (receiptId != null)
+            if (receiptId != null && role == 'admin')
               IconButton(
                 icon: Icon(Icons.delete, color: Colors.red[400], size: 20),
                 padding: EdgeInsets.zero,

@@ -154,6 +154,7 @@ class _EntryManualPageState extends State<EntryManualPage> {
       appBar: AppBar(
         title: Text('Entry Batch Produk Masuk'),
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -218,6 +219,7 @@ class _EntryManualPageState extends State<EntryManualPage> {
                       label: Text('Tambah Produk'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueGrey,
+                        foregroundColor: Colors.white,
                       ),
                     ),
                     SizedBox(height: 24),
@@ -227,6 +229,7 @@ class _EntryManualPageState extends State<EntryManualPage> {
                       style: ElevatedButton.styleFrom(
                         minimumSize: Size(double.infinity, 48),
                         backgroundColor: Color(0xFF03A6A1),
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ],

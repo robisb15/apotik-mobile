@@ -156,11 +156,13 @@ class _EntryScanBarcodePageState extends State<EntryScanBarcodePage> {
       appBar: AppBar(
         title: Text('Scan Barcode Produk Masuk'),
         backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _scanBarcode,
         child: Icon(Icons.qr_code_scanner),
         backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
@@ -337,6 +339,7 @@ class _EntryScanBarcodePageState extends State<EntryScanBarcodePage> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(double.infinity, 48),
                   backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
                 ),
               ),
             ],

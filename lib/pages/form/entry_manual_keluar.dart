@@ -158,6 +158,7 @@ class _EntryManualBarangKeluarPageState
       appBar: AppBar(
         title: Text('Entry Manual Barang Keluar'),
         backgroundColor: Color(0xFF03A6A1),
+        foregroundColor: Colors.white,
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -261,6 +262,10 @@ class _EntryManualBarangKeluarPageState
                       onPressed: _addProductOutEntry,
                       icon: Icon(Icons.add),
                       label: Text('Tambah Produk'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey,
+                        foregroundColor: Colors.white,
+                      ),
                     ),
                     SizedBox(height: 24),
                     ElevatedButton(
@@ -269,6 +274,7 @@ class _EntryManualBarangKeluarPageState
                       style: ElevatedButton.styleFrom(
                         minimumSize: Size(double.infinity, 48),
                         backgroundColor: Color(0xFF03A6A1),
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ],

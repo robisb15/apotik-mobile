@@ -150,11 +150,13 @@ class _ScanBarangKeluarPageState extends State<ScanBarangKeluarPage> {
       appBar: AppBar(
         title: Text('Scan Barang Keluar'),
         backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _scanBarcode,
         child: Icon(Icons.qr_code_scanner),
         backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
@@ -227,6 +229,7 @@ class _ScanBarangKeluarPageState extends State<ScanBarangKeluarPage> {
                 child: Text('Simpan Semua'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
                   minimumSize: Size(double.infinity, 48),
                 ),
               ),

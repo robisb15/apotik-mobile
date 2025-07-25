@@ -14,13 +14,13 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       initialIndex: initialIndex,
-      length: 5,
+      length: 4,
       child: Scaffold(
         body: TabBarView(
           children: [
             Dashboard(),
             GroupedBarangMasukPage(),
-            ScanPage(),
+
             BarangKeluarPage(),
             UserPage(),
           ],
@@ -34,7 +34,7 @@ class HomePage extends StatelessWidget {
             tabs: [
               Tab(icon: Icon(Icons.home), text: 'Dashboard'),
               Tab(icon: Icon(Icons.inbox), text: 'Masuk'),
-              Tab(icon: Icon(Icons.document_scanner), text: 'Scan'),
+
               Tab(icon: Icon(Icons.outbox), text: 'Keluar'),
               Tab(icon: Icon(Icons.settings), text: 'Lainnya'),
             ],
